@@ -6,7 +6,7 @@ ENV DEBIAN_FRONTEND=noninteractive
 
 RUN apt update && \
     apt install -y --no-install-recommends build-essential git zsh curl vim less locales \
-    python3-dev libmysqlclient-dev gcc && \
+    python3-dev libmysqlclient-dev gcc openjdk-11-jdk && \
     locale-gen ko_KR.UTF-8 && \
     rm -rf /var/lib/apt/lists/* && \
     sh -c "$(curl -fsSL https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh)" && \
