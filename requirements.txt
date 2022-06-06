@@ -24,3 +24,4 @@ jupyterlab==3.4.2
 black==22.3.0
 isort==5.10.1
 jupyterlab-code-formatter==1.4.11
+ipywidgets==7.7.0
