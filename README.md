@@ -52,3 +52,12 @@ $rank_i$: $i$-th query에 대해 relevant item이 처음으로 등장한 rank.
 ### 모델 사전 조사
 
 [Slide](https://docs.google.com/presentation/d/10GK0t88or1nFAZZiV91ydS3EZ5u5v7LP/edit?usp=sharing&ouid=101151189854282658970&rtpof=true&sd=true)
+
+---
+
+## Log
+
+[2022.06.07]
+
+- BM25 baseline 실험
+- Public socre: 0.94657
