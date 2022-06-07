@@ -130,6 +130,10 @@ dmypy.json
 
 # data
 data/
+*submission*.csv
 
 # jupyter notebook
 notebooks/
+
+# vscode
+.vscode/
