@@ -6,7 +6,6 @@ from typing import Dict, Iterable, List, Tuple
 
 import numpy as np
 import torch
-from pyserini.search.lucene import LuceneSearcher
 from transformers.tokenization_utils_base import PreTrainedTokenizerBase
 
 
@@ -16,30 +15,32 @@ class Dataset(torch.utils.data.Dataset):
         queries: Dict[str, str],
         docs: Dict[str, str],
         query_to_docs: Dict[str, str],
-        searcher: LuceneSearcher,
-        topk: int,
-        num_neg: int,
+        candidates: Dict[str, List[str]],
+        shard_idx: int,
+        shard_size: int = 10000,
+        num_neg: int = 1,
     ) -> None:
         super().__init__()
-        self.queries = list(queries.items())
+        self.queries = list(queries.items())[
+            shard_idx * shard_size : (shard_idx + 1) * shard_size
+        ]
         self.docs = docs
         self.query_to_docs = query_to_docs
-        self.searcher = searcher
-        self.topk = topk
+        self.candidates = candidates
+        self.shard_idx = shard_idx
         self.num_neg = num_neg
 
     def __len__(self) -> int:
-        return len(self.queries)
+        return len(self.candidates)
 
     def __getitem__(self, idx: int) -> Tuple[List[str], List[str], List[int]]:
         q_id, query = self.queries[idx]
-        topk_doc_ids = [r.docid for r in self.searcher.search(query, k=self.topk)]
         pos_doc_ids = [d_id for d_id in self.query_to_docs[q_id]]
         neg_doc_ids = set()
         while len(neg_doc_ids) < self.num_neg:
-            ridx = np.random.randint(self.topk)
-            if topk_doc_ids[ridx] not in pos_doc_ids:
-                neg_doc_ids.add(topk_doc_ids[ridx])
+            ridx = np.random.randint(len(self.candidates[q_id]))
+            if self.candidates[q_id][ridx] not in pos_doc_ids:
+                neg_doc_ids.add(self.candidates[q_id][ridx])
 
         neg_doc_ids = list(neg_doc_ids)
         pos_doc_str = [self.docs[doc_id] for doc_id in pos_doc_ids]
