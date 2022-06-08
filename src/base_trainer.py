@@ -139,6 +139,7 @@ class BaseTrainerModel(pl.LightningModule, ABC):
         "log_dir",
         "data_dir",
         "run_id",
+        "reset_early",
     ]
 
     def __init__(
@@ -151,7 +152,8 @@ class BaseTrainerModel(pl.LightningModule, ABC):
         train_batch_size: int = 128,
         test_batch_size: int = 256,
         valid_size: float = 0.2,
-        early: int = 50,
+        early: int = 10,
+        reset_early: bool = False,
         early_criterion: str = "n5",
         eval_step: int = 100,
         optim_name: str = "adamw",
@@ -183,6 +185,7 @@ class BaseTrainerModel(pl.LightningModule, ABC):
         self.test_batch_size = test_batch_size
         self.valid_size = valid_size
         self.early = early
+        self.reset_early = reset_early
         self.early_criterion = early_criterion
         self.eval_step = eval_step
         self.optim_name = optim_name
@@ -310,6 +313,12 @@ class BaseTrainerModel(pl.LightningModule, ABC):
         if self.num_gpus >= 1:
             gpu_info = _get_gpu_info(self.num_gpus)
             experiment.set_tag(self.logger.run_id, "GPU info", ", ".join(gpu_info))
+
+        if self.run_id is not None and self.reset_early:
+            for callback in self.trainer.callbacks:
+                if isinstance(callback, EarlyStopping):
+                    callback.wait_count = 0
+                    break
 
     def should_prune(self, value: float) -> None:
         experiment: MlflowClient = self.logger.experiment
