@@ -12,37 +12,44 @@ from transformers.tokenization_utils_base import PreTrainedTokenizerBase
 class Dataset(torch.utils.data.Dataset):
     def __init__(
         self,
-        queries: Dict[str, str],
+        query_ids: np.ndarray,
+        queries: np.ndarray,
         docs: Dict[str, str],
         query_to_docs: Dict[str, str],
         candidates: Dict[str, List[str]],
-        shard_idx: int,
-        shard_size: int = 10000,
+        topk: int = 50,
         num_neg: int = 1,
+        is_training: bool = False,
     ) -> None:
         super().__init__()
-        self.queries = list(queries.items())[
-            shard_idx * shard_size : (shard_idx + 1) * shard_size
-        ]
+        assert len(queries) == len(query_ids)
+
+        self.query_ids = query_ids
+        self.queries = queries
         self.docs = docs
         self.query_to_docs = query_to_docs
         self.candidates = candidates
-        self.shard_idx = shard_idx
+        self.topk = topk
         self.num_neg = num_neg
+        self.is_training = is_training
 
     def __len__(self) -> int:
         return len(self.candidates)
 
     def __getitem__(self, idx: int) -> Tuple[List[str], List[str], List[int]]:
-        q_id, query = self.queries[idx]
+        q_id, query = self.query_ids[idx], self.queries[idx]
         pos_doc_ids = [d_id for d_id in self.query_to_docs[q_id]]
         neg_doc_ids = set()
-        while len(neg_doc_ids) < self.num_neg:
-            ridx = np.random.randint(len(self.candidates[q_id]))
-            if self.candidates[q_id][ridx] not in pos_doc_ids:
-                neg_doc_ids.add(self.candidates[q_id][ridx])
 
-        neg_doc_ids = list(neg_doc_ids)
+        if self.is_training:
+            while len(neg_doc_ids) < self.num_neg:
+                ridx = np.random.randint(len(self.candidates[q_id]))
+                if self.candidates[q_id][ridx] not in pos_doc_ids:
+                    neg_doc_ids.add(self.candidates[q_id][ridx])
+        else:
+            # candidates in inference time
+            pos_doc_ids = self.candidates[q_id][: self.topk]
+
         pos_doc_str = [self.docs[doc_id] for doc_id in pos_doc_ids]
         neg_doc_str = [self.docs[doc_id] for doc_id in neg_doc_ids]
 

@@ -250,7 +250,7 @@ class BaseTrainerModel(pl.LightningModule, ABC):
             logger.info(f"# train dataset: {len(self.train_dataset):,}")
             logger.info(f"# valid dataset: {len(self.val_dataset):,}")
             logger.info(f"# test dataset: {len(self.test_dataset):,}")
-            logger.info(f"# labels: {len(self.train_dataset.dataset.mlb.classes_):,}")
+            # logger.info(f"# labels: {len(self.train_dataset.dataset.mlb.classes_):,}")
             self._logged = True
 
     def load_model_hparams(self) -> Dict[str, Any]:

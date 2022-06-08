@@ -2,6 +2,7 @@
 Created on 2022/06/07
 @author Sangwoo Han
 """
+import os
 from typing import Any, Optional
 
 import click
@@ -41,17 +42,17 @@ _train_options = [
     ),
     optgroup.option("--run-id", type=click.STRING, help="MLFlow Run ID for resume training"),
     optgroup.option("--model-name", type=click.STRING, required=True, help="Model name"),
-    optgroup.option("--dataset-name", type=click.STRING, required=True, help="Dataset name"),
+    optgroup.option("--dataset-name", type=click.STRING, required=True, default="dataset", help="Dataset name"),
     optgroup.option("--valid-size", type=FLOAT_INT, default=0.2, help="Validation dataset size"),
     optgroup.option("--seed", type=click.INT, default=0, help="Seed for reproducibility"),
     optgroup.option("--swa-warmup", type=click.INT, default=10, help="Warmup for SWA. Disable: 0"),
     optgroup.option("--mp-enabled", is_flag=True, default=False, help="Enable Mixed Precision"),
     optgroup.option("--early", type=click.INT, default=50, help="Early stopping step"),
-    optgroup.option("--early-criterion", type=click.Choice(["p5", "n5", "psp5", "loss"]), default="n5", help="Early stopping criterion"),
+    optgroup.option("--early-criterion", type=click.Choice(["mrr", "loss"]), default="mrr", help="Early stopping criterion"),
     optgroup.option("--eval-step", type=click.INT, default=100, help="Evaluation step during training"),
     optgroup.option("--num-epochs", type=click.INT, default=40, help="Total number of epochs"),
-    optgroup.option("--train-batch-size", type=click.INT, default=128, help="Batch size for training"),
-    optgroup.option("--test-batch-size", type=click.INT, default=256, help="Batch size for test"),
+    optgroup.option("--train-batch-size", type=click.INT, default=8, help="Batch size for training"),
+    optgroup.option("--test-batch-size", type=click.INT, default=1, help="Batch size for test"),
     optgroup.option("--no-cuda", is_flag=True, default=False, help="Disable cuda"),
     optgroup.option("--num-workers", type=click.INT, default=4, help="Number of workers for data loader"),
     optgroup.option("--lr", type=click.FLOAT, default=1e-3, help="learning rate"),
@@ -89,15 +90,21 @@ _log_options = [
 
 _dataset_options = [
     optgroup.group("Dataset Options"),
-    optgroup.option("--maxlen", type=click.INT, default=500, help="Max length of tokens"),
-    optgroup.option("--pad", type=click.STRING, default="<PAD>", help="Pad token"),
-    optgroup.option("--unknown", type=click.STRING, default="<UNK>", help="Unknown token"),
-    optgroup.option("--num-cores", type=click.INT, default=-1, help="# cores for preprocessing"),
+    optgroup.option("--data-dir-path", type=click.Path(exists=True), default="./data", help="Data root directory"),
+    optgroup.option("--max-length", type=click.INT, default=512, help="Maximum length of tokens"),
+    optgroup.option("--shard-idx", type=click.INT, multiple=True, required=True, help="Select shard idx"),
+    optgroup.option("--shard-size", type=click.INT, default=10000, help="Size of shard"),
+    optgroup.option("--topk-candidates", type=click.INT, default=50, help="Topk candidates"),
+    optgroup.option("--final-topk", type=click.INT, default=10, help="Final topk predction"),
+    optgroup.option("--num-neg", type=click.INT, required=True, default=1, help="# of negative samples"),
 ]
 
 _monobert_options = [
     optgroup.group("monoBERT Options"),
-    optgroup.option("--test-opt", type=click.INT, default=256, help="test opt"),
+    optgroup.option("--pretrained-model-name", type=click.STRING, default="monologg/koelectra-base-v3-discriminator", help="Bert pretrained model name"),
+    optgroup.option('--linear-size', type=click.INT, multiple=True, default=[256], help="Linear size"),
+    optgroup.option('--dropout', type=click.FloatRange(0, 1), default=0.2, help="Dropout for MLP"),
+    optgroup.option("--use-layernorm", is_flag=True, default=False, help="Use layernorm in MLP"),
 ]
 
 _duobert_options = [
@@ -128,6 +135,9 @@ def train_monobert(ctx: click.core.Context, **args: Any) -> None:
     if ctx.obj["save_args"] is not None:
         save_args(args, ctx.obj["save_args"])
         return
+    args["linear_size"] = list(args["linear_size"])
+    args["shard_idx"] = list(args["shard_idx"])
+    os.environ["TOKENIZERS_PARALLELISM"] = "false"
     train_model("monoBERT", **args)
 
 
@@ -137,11 +147,12 @@ def train_monobert(ctx: click.core.Context, **args: Any) -> None:
 @add_options(_dataset_options)
 @add_options(_duobert_options)
 @click.pass_context
-def train_laroberta(ctx: click.core.Context, **args: Any) -> None:
+def train_duobert(ctx: click.core.Context, **args: Any) -> None:
     """Train duoBERT"""
     if ctx.obj["save_args"] is not None:
         save_args(args, ctx.obj["save_args"])
         return
+    args["shard_idx"] = list(args["shard_idx"])
     train_model("duoBERT", **args)
 
 
