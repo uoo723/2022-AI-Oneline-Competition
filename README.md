@@ -57,6 +57,11 @@ $rank_i$: $i$-th query에 대해 relevant item이 처음으로 등장한 rank.
 
 ## Log
 
+[2022.06.08]
+
+- monoBERT 모델 구현
+- monoBERT 훈련 loop 구현
+
 [2022.06.07]
 
 - BM25 baseline 실험
