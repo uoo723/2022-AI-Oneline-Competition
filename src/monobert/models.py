@@ -9,6 +9,7 @@ import torch.nn as nn
 from transformers import AutoConfig, AutoModel
 
 from ..modules import MLPLayer
+from ..utils import filter_arguments
 
 
 class MonoBERT(nn.Module):
@@ -31,6 +32,6 @@ class MonoBERT(nn.Module):
         )
 
     def forward(self, inputs: Dict[str, torch.Tensor]) -> torch.Tensor:
-        enc_outputs = self.bert(**inputs)[0][:, 0]
+        enc_outputs = self.bert(**filter_arguments(inputs, self.bert.forward))[0][:, 0]
         outputs: torch.Tensor = self.mlp(enc_outputs)
         return outputs.squeeze()
