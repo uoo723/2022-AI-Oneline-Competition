@@ -59,6 +59,21 @@ def _get_gpu_info(num_gpus: int) -> List[str]:
     return [f"{i}: {torch.cuda.get_device_name(i)}" for i in range(num_gpus)]
 
 
+def load_model_hparams(
+    log_dir: str, run_id: str, model_hparams: Iterable[str]
+) -> Dict[str, Any]:
+    ret_params: Dict[str, Any] = {}
+    params: Dict[str, Any] = get_run(log_dir, run_id).data.params
+
+    for k, v in params.items():
+        if k in model_hparams:
+            try:
+                ret_params[k] = literal_eval(v)
+            except Exception:
+                ret_params[k] = v  # str type
+    return ret_params
+
+
 def _get_optimizer(
     model: nn.Module, optim_name: str = "adamw", lr: float = 1e-3, decay: float = 0
 ) -> Optimizer:
@@ -174,6 +189,7 @@ class BaseTrainerModel(pl.LightningModule, ABC):
         tags: Iterable[Tuple[str, Any]] = [],
         run_script: Optional[str] = None,
         log_dir: str = "./logs",
+        data_dir: str = "./data",
     ) -> None:
         super().__init__()
         self.num_gpus = num_gpus
@@ -206,6 +222,7 @@ class BaseTrainerModel(pl.LightningModule, ABC):
         self.tags = tags
         self.run_script = run_script
         self.log_dir = log_dir
+        self.data_dir = data_dir
 
         self._logged = False
 
@@ -255,18 +272,6 @@ class BaseTrainerModel(pl.LightningModule, ABC):
             logger.info(f"# test dataset: {len(self.test_dataset):,}")
             # logger.info(f"# labels: {len(self.train_dataset.dataset.mlb.classes_):,}")
             self._logged = True
-
-    def load_model_hparams(self) -> Dict[str, Any]:
-        model_hparams = {}
-        params: Dict[str, Any] = get_run(self.log_dir, self.run_id).data.params
-
-        for k, v in params.items():
-            if k in self.model_hparams:
-                try:
-                    model_hparams[k] = literal_eval(v)
-                except Exception:
-                    model_hparams[k] = v
-        return model_hparams
 
     def configure_optimizers(self):
         optimizer = _get_optimizer(self.model, self.optim_name, self.lr, self.decay)

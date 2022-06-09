@@ -91,13 +91,18 @@ _log_options = [
 
 _dataset_options = [
     optgroup.group("Dataset Options"),
-    optgroup.option("--data-dir-path", type=click.Path(exists=True), default="./data", help="Data root directory"),
+    optgroup.option("--data-dir", type=click.Path(exists=True), default="./data", help="Data root directory"),
     optgroup.option("--max-length", type=click.INT, default=512, help="Maximum length of tokens"),
-    optgroup.option("--shard-idx", type=click.INT, multiple=True, required=True, help="Select shard idx"),
+    optgroup.option("--shard-idx", type=click.INT, multiple=True, help="Select shard idx"),
     optgroup.option("--shard-size", type=click.INT, default=10000, help="Size of shard"),
     optgroup.option("--topk-candidates", type=click.INT, default=50, help="Topk candidates"),
     optgroup.option("--final-topk", type=click.INT, default=10, help="Final topk predction"),
     optgroup.option("--num-neg", type=click.INT, required=True, default=1, help="# of negative samples"),
+]
+
+_submission_options = [
+    optgroup.group("Submission Options"),
+    optgroup.option("--submission-output", type=click.Path(), default="./submissions/submission.csv", help="Output path for submssion"),
 ]
 
 _monobert_options = [
@@ -129,6 +134,7 @@ def add_options(options):
 @add_options(_train_options)
 @add_options(_log_options)
 @add_options(_dataset_options)
+@add_options(_submission_options)
 @add_options(_monobert_options)
 @click.pass_context
 def train_monobert(ctx: click.core.Context, **args: Any) -> None:

@@ -2,11 +2,10 @@
 Created on 2022/06/07
 @author Sangwoo Han
 """
-import json
 import os
-from collections import OrderedDict, defaultdict
+from collections import OrderedDict
 from functools import partial
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, Iterable, List, Optional, Tuple
 
 import numpy as np
 import pandas as pd
@@ -23,10 +22,12 @@ from pytorch_lightning.utilities.types import (
 )
 from sklearn.model_selection import train_test_split
 from torch.utils.data import DataLoader, Subset
+from tqdm.auto import tqdm
 from transformers import AutoTokenizer
 
 from .. import base_trainer
-from ..base_trainer import BaseTrainerModel
+from ..base_trainer import BaseTrainerModel, get_ckpt_path, load_model_hparams
+from ..data import load_data, preprocess_data
 from ..datasets import Dataset, bert_collate_fn
 from ..metrics import get_mrr
 from ..utils import AttrDict, filter_arguments
@@ -36,13 +37,19 @@ BATCH = Tuple[Dict[str, torch.Tensor], torch.Tensor]
 
 
 class MonoBERTTrainerModel(BaseTrainerModel):
+    MODEL_HPARAMS: Iterable[str] = {
+        "pretrained_model_name",
+        "dropout",
+        "linear_size",
+        "use_layernorm",
+    }
+
     def __init__(
         self,
         pretrained_model_name: str = "monologg/koelectra-base-v3-discriminator",
         linear_size: List[int] = [256],
         dropout: int = 0.2,
         use_layernorm: bool = False,
-        data_dir_path: str = "./data",
         max_length: int = 512,
         shard_idx: List[str] = [0],
         shard_size: int = 10000,
@@ -57,7 +64,6 @@ class MonoBERTTrainerModel(BaseTrainerModel):
         self.linear_size = linear_size
         self.dropout = dropout
         self.use_layernorm = use_layernorm
-        self.data_dir_path = data_dir_path
         self.max_length = max_length
         self.shard_idx = shard_idx
         self.shard_size = shard_size
@@ -65,39 +71,18 @@ class MonoBERTTrainerModel(BaseTrainerModel):
         self.final_topk = final_topk
         self.num_neg = num_neg
         self.loss_fn = nn.BCEWithLogitsLoss()
-        self.save_hyperparameters(ignore=self.IGNORE_HPARAMS + ['data_dir_path'])
+        self.save_hyperparameters(ignore=self.IGNORE_HPARAMS)
 
     @property
-    def model_hparams(self) -> List[str]:
-        return {
-            "pretrained_model_name",
-            "dropout",
-            "linear_size",
-            "use_layernorm",
-        }
+    def model_hparams(self) -> Iterable[str]:
+        return MonoBERTTrainerModel.MODEL_HPARAMS
 
     def prepare_data(self) -> None:
-        train_data_path = os.path.join(self.data_dir_path, "train.json")
-        test_data_path = os.path.join(self.data_dir_path, "test_data.json")
-        with open(train_data_path, "r") as f1, open(test_data_path, "r") as f2:
-            self.train_data = json.load(f1)
-            self.test_data = json.load(f2)
+        self.train_data, _, _, _ = load_data(self.data_dir)
 
-        # test_question = pd.read_csv("./data/test_questions.csv", encoding="utf8")
-        # sample = pd.read_csv("./data/sample_submission.csv", encoding="utf8")
-
-        self.train_queries = OrderedDict()
-        self.train_query_to_docs = defaultdict(list)
-        self.train_docs = OrderedDict()
-
-        for data in self.train_data["data"]:
-            for paragraph in data["paragraphs"]:
-                for q in paragraph["qas"]:
-                    self.train_queries[q["question_id"]] = q["question"]
-                    self.train_query_to_docs[q["question_id"]].append(
-                        paragraph["paragraph_id"]
-                    )
-                self.train_docs[paragraph["paragraph_id"]] = paragraph["context"]
+        self.train_queries, self.train_docs, self.train_query_to_docs = preprocess_data(
+            self.train_data
+        )
 
         self.train_query_ids = list(self.train_queries.keys())
         self.train_query_str = list(self.train_queries.values())
@@ -112,7 +97,7 @@ class MonoBERTTrainerModel(BaseTrainerModel):
         logger.info("Load sharding...")
         for shard_idx in self.shard_idx:
             filename = f"train_top1000_{shard_idx:02d}.txt"
-            tsv_path = os.path.join(self.data_dir_path, "top1000", filename)
+            tsv_path = os.path.join(self.data_dir, "top1000", filename)
             df = pd.read_csv(tsv_path, sep=" ", header=None)
             df[0] = df[0].map(lambda x: query_id_i2s[x])
             self.candidates.update(df.groupby(0)[2].apply(list).to_dict())
@@ -200,7 +185,7 @@ class MonoBERTTrainerModel(BaseTrainerModel):
             return
 
         if self.run_id is not None:
-            hparams = self.load_model_hparams()
+            hparams = load_model_hparams(self.log_dir, self.run_id, self.model_hparams)
         else:
             hparams = {param: getattr(self, param) for param in self.model_hparams}
 
@@ -239,7 +224,7 @@ class MonoBERTTrainerModel(BaseTrainerModel):
 
         prediction = {}
         for query_id, rank_indices in zip(
-            self.sub_train_query_ids[self.valid_ids][:len(indices)], indices
+            self.sub_train_query_ids[self.valid_ids][: len(indices)], indices
         ):
             prediction[query_id] = [
                 self.candidates[query_id][: self.topk_candidates][idx]
@@ -247,9 +232,9 @@ class MonoBERTTrainerModel(BaseTrainerModel):
             ]
 
         val_y_true = {
-                k: self.train_query_to_docs[k]
-                for k in self.sub_train_query_ids[self.valid_ids][:len(indices)]
-            }
+            k: self.train_query_to_docs[k]
+            for k in self.sub_train_query_ids[self.valid_ids][: len(indices)]
+        }
 
         mrr = get_mrr(val_y_true, prediction)
 
@@ -321,4 +306,95 @@ def test(
 
 
 def predict(args: AttrDict) -> Any:
-    raise NotImplemented
+    assert args.mode == "predict", "mode must be predict"
+    assert args.run_id is not None, "run_id must be specified"
+    assert args.submission_output is not None, "submission output must be specified"
+
+    ################################# Load Data ########################################
+    logger.info("Load Data...")
+    _, test_data, test_question, submission = load_data(args.data_dir)
+    _, test_docs = preprocess_data(test_data, return_query_to_docs=False)
+    test_queries = dict(
+        zip(test_question["question_id"], test_question["question_text"])
+    )
+    test_query_id_i2s = dict(zip(range(len(test_queries)), test_queries.keys()))
+
+    tsv_path = os.path.join(args.data_dir, "top1000", "test_top1000_00.txt")
+    df = pd.read_csv(tsv_path, sep=" ", header=None)
+    df[0] = df[0].map(lambda x: test_query_id_i2s[x])
+    test_candidates: Dict[str, List[str]] = df.groupby(0)[2].apply(list).to_dict()
+    ####################################################################################
+
+    ################################## Load Model ######################################
+    logger.info("Load Model...")
+    hparams = load_model_hparams(
+        args.log_dir, args.run_id, MonoBERTTrainerModel.MODEL_HPARAMS
+    )
+
+    model = MonoBERT(**filter_arguments(hparams, MonoBERT))
+
+    ckpt_path = get_ckpt_path(args.log_dir, args.run_id, load_best=True)
+    ckpt = torch.load(ckpt_path, map_location="cpu")
+    state_dict = OrderedDict(
+        zip(
+            [key.replace("model.", "") for key in ckpt["state_dict"].keys()],
+            ckpt["state_dict"].values(),
+        )
+    )
+    model.load_state_dict(state_dict)
+    model.to(args.device)
+    tokenizer = AutoTokenizer.from_pretrained(hparams["pretrained_model_name"])
+    ####################################################################################
+
+    ################################## Inference #######################################
+    os.environ["TOKENIZERS_PARALLELISM"] = "true"
+
+    batch_size = args.test_batch_size
+    max_length = args.max_length
+    topk = args.topk_candidates
+    predictions = []
+
+    model.eval()
+    for q_id, doc_ids in tqdm(test_candidates.items(), desc="inference..."):
+        query_str = [test_queries[q_id]] * batch_size
+        num_batches = (len(doc_ids[:topk]) + batch_size - 1) // batch_size
+        q_predictions = []
+        for b in range(num_batches):
+            doc_str = [
+                test_docs[d_id]
+                for d_id in doc_ids[:topk][b * batch_size : (b + 1) * batch_size]
+            ]
+            inputs: Dict[str, torch.Tensor] = tokenizer(
+                query_str[: len(doc_str)],
+                doc_str,
+                return_tensors="pt",
+                max_length=max_length,
+                padding="max_length",
+                truncation="longest_first",
+            )
+            with torch.no_grad():
+                outputs: torch.Tensor = model({k: v.cuda() for k, v in inputs.items()})
+            q_predictions.append(outputs.cpu())
+        predictions.append(np.concatenate(q_predictions))
+
+    predictions = np.stack(predictions)
+
+    os.environ["TOKENIZERS_PARALLELISM"] = "false"
+    ####################################################################################
+
+    ############################### Make Submission ####################################
+    rank_list = predictions.argsort()[:, ::-1]
+    answer = []
+    for (q_id, doc_ids), rank in tqdm(
+        zip(test_candidates.items(), rank_list),
+        total=len(rank_list),
+        desc="make submission...",
+    ):
+        answer.append(",".join(np.array(doc_ids[:topk])[rank][: args.final_topk]))
+    submission["paragraph_id"] = answer
+
+    os.makedirs(os.path.dirname(args.submission_output), exist_ok=True)
+    submission.to_csv(args.submission_output, index=False)
+    ####################################################################################
+
+    return submission
