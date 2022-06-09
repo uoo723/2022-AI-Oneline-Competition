@@ -65,7 +65,7 @@ class MonoBERTTrainerModel(BaseTrainerModel):
         self.final_topk = final_topk
         self.num_neg = num_neg
         self.loss_fn = nn.BCEWithLogitsLoss()
-        self.save_hyperparameters(ignore=self.IGNORE_HPARAMS)
+        self.save_hyperparameters(ignore=self.IGNORE_HPARAMS + ['data_dir_path'])
 
     @property
     def model_hparams(self) -> List[str]:
