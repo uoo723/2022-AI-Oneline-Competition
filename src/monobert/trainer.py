@@ -350,6 +350,7 @@ def predict(args: AttrDict) -> Any:
     ####################################################################################
 
     ################################## Inference #######################################
+    logger.info("Start Inference")
     os.environ["TOKENIZERS_PARALLELISM"] = "true"
 
     batch_size = args.test_batch_size
