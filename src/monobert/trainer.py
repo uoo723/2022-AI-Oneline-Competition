@@ -310,6 +310,9 @@ def predict(args: AttrDict) -> Any:
     assert args.run_id is not None, "run_id must be specified"
     assert args.submission_output is not None, "submission output must be specified"
 
+    logger.info(f"run_id: {args.run_id}")
+    logger.info(f"submission_output: {args.submission_output}")
+
     ################################# Load Data ########################################
     logger.info("Load Data...")
     _, test_data, test_question, submission = load_data(args.data_dir)
