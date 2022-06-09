@@ -352,20 +352,21 @@ def predict(args: AttrDict) -> Any:
     batch_size = args.test_batch_size
     max_length = args.max_length
     topk = args.topk_candidates
-    predictions = []
+    answers = []
 
     model.eval()
     for q_id, doc_ids in tqdm(test_candidates.items(), desc="inference..."):
-        query_str = [test_queries[q_id]] * batch_size
+        query_str = test_queries[q_id]
+        doc_ids = np.array(doc_ids)
         num_batches = (len(doc_ids[:topk]) + batch_size - 1) // batch_size
-        q_predictions = []
+        predictions = []
         for b in range(num_batches):
             doc_str = [
                 test_docs[d_id]
                 for d_id in doc_ids[:topk][b * batch_size : (b + 1) * batch_size]
             ]
             inputs: Dict[str, torch.Tensor] = tokenizer(
-                query_str[: len(doc_str)],
+                [query_str] * len(doc_str),
                 doc_str,
                 return_tensors="pt",
                 max_length=max_length,
@@ -373,27 +374,19 @@ def predict(args: AttrDict) -> Any:
                 truncation="longest_first",
             )
             with torch.no_grad():
-                outputs: torch.Tensor = model({k: v.cuda() for k, v in inputs.items()})
-            q_predictions.append(outputs.cpu())
-        predictions.append(np.concatenate(q_predictions))
-
-    predictions = np.stack(predictions)
+                outputs: torch.Tensor = model(
+                    {k: v.to(args.device) for k, v in inputs.items()}
+                )
+            predictions.append(outputs.cpu())
+        rank = np.concatenate(predictions).argsort()[::-1]
+        answers.append(",".join(doc_ids[:topk][rank][: args.final_topk]))
 
     os.environ["TOKENIZERS_PARALLELISM"] = "false"
     ####################################################################################
 
     ############################### Make Submission ####################################
-    rank_list = predictions.argsort()[:, ::-1]
-    answer = []
-    for (q_id, doc_ids), rank in tqdm(
-        zip(test_candidates.items(), rank_list),
-        total=len(rank_list),
-        desc="make submission...",
-    ):
-        answer.append(",".join(np.array(doc_ids[:topk])[rank][: args.final_topk]))
-    submission["paragraph_id"] = answer
-
     os.makedirs(os.path.dirname(args.submission_output), exist_ok=True)
+    submission["paragraph_id"] = answers
     submission.to_csv(args.submission_output, index=False)
     ####################################################################################
 
