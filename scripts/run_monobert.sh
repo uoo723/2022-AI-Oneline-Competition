@@ -13,25 +13,30 @@ args=(
     --run-script $0
     --pretrained-model-name "monologg/koelectra-small-v3-discriminator"
     --optim-name "adamw"
-    --lr 1e-5
-    --num-epochs 5
+    --lr 2.5e-5
+    --num-epochs 10
     --train-batch-size 16
     --test-batch-size 1
     --accumulation-step 2
     --early-criterion 'mrr'
     --seed $1
     --swa-warmup 1
-    --eval-step 300
+    # --eval-step 300
+    --eval-step 1000
     --early 5
     --mp-enabled
     --gradient-max-norm 5.0
     --num-workers 8
     --experiment-name "monoBERT"
+    # --run-id "efe8a17d663645389ff4b92f9f82da44"
+    # --reset-early
     --max-length 512
-    --valid-size 200
+    --valid-size 1000
     --use-layernorm
     --shard-idx 0
     --shard-idx 1
+    --shard-idx 2
+    --shard-idx 3
 )
 
 python main.py train-monobert "${args[@]}"
