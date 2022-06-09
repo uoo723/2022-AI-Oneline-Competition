@@ -6,6 +6,7 @@ import copy
 import inspect
 import json
 import random
+import shutil
 import time
 from datetime import timedelta
 from functools import wraps
@@ -63,3 +64,10 @@ def save_args(args: AttrDict, path: str) -> None:
 def load_args(path: str) -> AttrDict:
     with open(path, "r", encoding="utf8") as f:
         return AttrDict(json.load(f))
+
+
+def copy_file(src: str, dst: str) -> None:
+    try:
+        shutil.copyfile(src, dst)
+    except shutil.SameFileError:
+        pass

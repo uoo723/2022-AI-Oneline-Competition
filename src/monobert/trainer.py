@@ -30,7 +30,7 @@ from ..base_trainer import BaseTrainerModel, get_ckpt_path, load_model_hparams
 from ..data import load_data, preprocess_data
 from ..datasets import Dataset, bert_collate_fn
 from ..metrics import get_mrr
-from ..utils import AttrDict, filter_arguments
+from ..utils import AttrDict, copy_file, filter_arguments
 from .models import MonoBERT
 
 BATCH = Tuple[Dict[str, torch.Tensor], torch.Tensor]
@@ -313,6 +313,15 @@ def predict(args: AttrDict) -> Any:
     logger.info(f"run_id: {args.run_id}")
     logger.info(f"submission_output: {args.submission_output}")
 
+    ############################# Save runscript #######################################
+    os.makedirs(os.path.dirname(args.submission_output), exist_ok=True)
+    if args.run_script:
+        dirname = os.path.dirname(args.submission_output)
+        basename, ext = os.path.splitext(os.path.basename(args.run_script))
+        basename += "_" + os.path.splitext(os.path.basename(args.submission_output))[0]
+        copy_file(args.run_script, os.path.join(dirname, basename + ext))
+    ####################################################################################
+
     ################################# Load Data ########################################
     logger.info("Load Data...")
     _, test_data, test_question, submission = load_data(args.data_dir)
@@ -389,7 +398,6 @@ def predict(args: AttrDict) -> Any:
     ####################################################################################
 
     ############################### Make Submission ####################################
-    os.makedirs(os.path.dirname(args.submission_output), exist_ok=True)
     submission["paragraph_id"] = answers
     submission.to_csv(args.submission_output, index=False)
     ####################################################################################
