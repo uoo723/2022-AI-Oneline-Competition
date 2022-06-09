@@ -57,6 +57,11 @@ $rank_i$: $i$-th query에 대해 relevant item이 처음으로 등장한 rank.
 
 ## Log
 
+[2022.06.10]
+
+- BM25 (50 candidates) + monoBERT (base) 실험
+- Public score: 0.98489
+
 [2022.06.09]
 
 - BM25 (50 candidates) + monoBERT (small) 실험
