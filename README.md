@@ -57,6 +57,13 @@ $rank_i$: $i$-th query에 대해 relevant item이 처음으로 등장한 rank.
 
 ## Log
 
+[2022.06.09]
+
+- BM25 (50 candidates) + monoBERT (small) 실험
+- Public score: 0.98371
+- BM25 (100 candidates) + monoBERT (small) 실험
+- Public score: 0.98415
+
 [2022.06.08]
 
 - monoBERT 모델 구현
@@ -65,4 +72,4 @@ $rank_i$: $i$-th query에 대해 relevant item이 처음으로 등장한 rank.
 [2022.06.07]
 
 - BM25 baseline 실험
-- Public socre: 0.94657
+- Public score: 0.94657
