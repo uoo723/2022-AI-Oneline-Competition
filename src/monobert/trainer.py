@@ -100,7 +100,7 @@ class MonoBERTTrainerModel(BaseTrainerModel):
         self.sub_train_query_str = []
         self.candidates = {}
 
-        logger.info("Load sharding...")
+        logger.info("Loading shard...")
         for shard_idx in self.shard_idx:
             filename = f"train_top1000_{shard_idx:02d}.txt"
             tsv_path = os.path.join(self.data_dir, "top1000", filename)
