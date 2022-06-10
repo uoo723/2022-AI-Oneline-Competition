@@ -111,6 +111,8 @@ _monobert_options = [
     optgroup.option('--linear-size', type=click.INT, multiple=True, default=[256], help="Linear size"),
     optgroup.option('--dropout', type=click.FloatRange(0, 1), default=0.2, help="Dropout for MLP"),
     optgroup.option("--use-layernorm", is_flag=True, default=False, help="Use layernorm in MLP"),
+    optgroup.option("--n-feature-layers", type=click.INT, default=1, help="# of layers to be concatenated for outputs"),
+    optgroup.option('--proj-dropout', type=click.FloatRange(0, 1), default=0.5, help="Dropout for projection layer"),
 ]
 
 _duobert_options = [

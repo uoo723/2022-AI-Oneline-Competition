@@ -42,14 +42,18 @@ class MonoBERTTrainerModel(BaseTrainerModel):
         "dropout",
         "linear_size",
         "use_layernorm",
+        "n_feature_layers",
+        "proj_dropout",
     }
 
     def __init__(
         self,
         pretrained_model_name: str = "monologg/koelectra-base-v3-discriminator",
         linear_size: List[int] = [256],
-        dropout: int = 0.2,
+        dropout: float = 0.2,
         use_layernorm: bool = False,
+        n_feature_layers: int = 1,
+        proj_dropout: float = 0.5,
         max_length: int = 512,
         shard_idx: List[str] = [0],
         shard_size: int = 10000,
@@ -64,6 +68,8 @@ class MonoBERTTrainerModel(BaseTrainerModel):
         self.linear_size = linear_size
         self.dropout = dropout
         self.use_layernorm = use_layernorm
+        self.n_feature_layers = n_feature_layers
+        self.proj_dropout = proj_dropout
         self.max_length = max_length
         self.shard_idx = shard_idx
         self.shard_size = shard_size
