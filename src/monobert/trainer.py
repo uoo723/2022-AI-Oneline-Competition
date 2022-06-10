@@ -353,12 +353,31 @@ def predict(args: AttrDict) -> Any:
 
     ckpt_path = get_ckpt_path(args.log_dir, args.run_id, load_best=True)
     ckpt = torch.load(ckpt_path, map_location="cpu")
+
+    swa_callback_key = None
+    callbacks: Dict[str, Any] = ckpt["callbacks"]
+    for key in callbacks.keys():
+        if "StochasticWeightAveraging" in key:
+            swa_callback_key = key
+            break
+
+    state_dict: Dict[str, torch.Tensor] = ckpt["state_dict"]
+
+    if swa_callback_key is not None and "average_model" in callbacks[swa_callback_key]:
+        logger.info("Use averaged weights")
+        avg_state_dict: Dict[str, torch.Tensor] = callbacks[swa_callback_key][
+            "average_model"
+        ]
+        avg_state_dict.pop("models_num")
+        state_dict.update(avg_state_dict)
+
     state_dict = OrderedDict(
         zip(
-            [key.replace("model.", "") for key in ckpt["state_dict"].keys()],
-            ckpt["state_dict"].values(),
+            [key.replace("model.", "") for key in state_dict.keys()],
+            state_dict.values(),
         )
     )
+
     model.load_state_dict(state_dict)
     model.to(args.device)
     tokenizer = AutoTokenizer.from_pretrained(hparams["pretrained_model_name"])
