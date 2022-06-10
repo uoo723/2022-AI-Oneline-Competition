@@ -247,7 +247,7 @@ class MonoBERTTrainerModel(BaseTrainerModel):
         if is_val:
             self.log_dict({"val/mrr": mrr}, prog_bar=True)
         else:
-            self.log_dict({"test/mrr": mrr}, prog_bar=True)
+            self.log_dict({"test/mrr": mrr})
 
     def validation_step(self, batch: BATCH, _) -> Optional[STEP_OUTPUT]:
         return self._validation_and_test_step(batch, is_val=True)
