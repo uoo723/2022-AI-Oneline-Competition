@@ -7,6 +7,7 @@ from collections import OrderedDict
 from functools import partial
 from typing import Any, Dict, Iterable, List, Optional, Tuple
 
+import click
 import numpy as np
 import pandas as pd
 import pytorch_lightning as pl
@@ -318,6 +319,13 @@ def predict(args: AttrDict) -> Any:
 
     logger.info(f"run_id: {args.run_id}")
     logger.info(f"submission_output: {args.submission_output}")
+
+    if os.path.exists(args.submission_output):
+        click.confirm(
+            f"{os.path.basename(args.submission_output)} is already existed."
+            " Overwrite it?",
+            abort=True,
+        )
 
     ############################# Save runscript #######################################
     os.makedirs(os.path.dirname(args.submission_output), exist_ok=True)
