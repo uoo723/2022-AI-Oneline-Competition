@@ -38,7 +38,7 @@ class CircleLoss(nn.Module):
         anchor: torch.Tensor,
         pos: Optional[torch.Tensor] = None,
         neg: Optional[torch.Tensor] = None,
-        pos_weights: torch.Tensor = None,
+        pos_weights: Optional[torch.Tensor] = None,
     ) -> torch.Tensor:
         if pos is not None:
             sp = self.distance(anchor, pos)
