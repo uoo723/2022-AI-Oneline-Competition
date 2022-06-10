@@ -423,8 +423,10 @@ def predict(args: AttrDict) -> Any:
     ####################################################################################
 
     ############################### Make Submission ####################################
+    logger.info("Make submission")
     submission["paragraph_id"] = answers
     submission.to_csv(args.submission_output, index=False)
+    logger.info(f"Saved into {args.submission_output}")
     ####################################################################################
 
     return submission
