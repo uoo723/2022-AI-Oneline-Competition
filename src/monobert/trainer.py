@@ -29,9 +29,9 @@ from transformers import AutoTokenizer
 from .. import base_trainer
 from ..base_trainer import BaseTrainerModel, get_ckpt_path, load_model_hparams
 from ..data import load_data, preprocess_data
-from ..datasets import Dataset, bert_collate_fn
 from ..metrics import get_mrr
 from ..utils import AttrDict, copy_file, filter_arguments
+from .datasets import Dataset, bert_collate_fn
 from .models import MonoBERT
 
 BATCH = Tuple[Dict[str, torch.Tensor], torch.Tensor]
