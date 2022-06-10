@@ -120,6 +120,12 @@ _duobert_options = [
     optgroup.option("--test-opt", type=click.INT, default=256, help="test opt"),
 ]
 
+
+_sentencebert_options = [
+    optgroup.group("sentenceBERT Options"),
+    optgroup.option("--test-opt2", type=click.INT, default=256, help="test opt"),
+]
+
 # fmt: on
 
 
@@ -165,6 +171,23 @@ def train_duobert(ctx: click.core.Context, **args: Any) -> None:
     train_model("duoBERT", **args)
 
 
+@cli.command(context_settings={"show_default": True})
+@add_options(_train_options)
+@add_options(_log_options)
+@add_options(_dataset_options)
+@add_options(_submission_options)
+@add_options(_sentencebert_options)
+@click.pass_context
+def train_sentencebert(ctx: click.core.Context, **args: Any) -> None:
+    """Train sentenceBERT"""
+    if ctx.obj["save_args"] is not None:
+        save_args(args, ctx.obj["save_args"])
+        return
+    args["shard_idx"] = list(args["shard_idx"])
+    os.environ["TOKENIZERS_PARALLELISM"] = "false"
+    train_model("sentenceBERT", **args)
+
+
 @log_elapsed_time
 def train_model(
     train_name: str,
@@ -173,11 +196,13 @@ def train_model(
     enable_trial_pruning: bool = False,
     **args: Any,
 ) -> None:
-    assert train_name in ["monoBERT", "duoBERT"]
+    assert train_name in ["monoBERT", "duoBERT", "sentenceBERT"]
     if train_name == "monoBERT":
         import src.monobert.trainer as trainer
     elif train_name == "duoBERT":
         import src.duobert.trainer as trainer
+    elif train_name == "sentenceBERT":
+        import src.sentencebert.trainer as trainer
 
     args = AttrDict(args)
 
