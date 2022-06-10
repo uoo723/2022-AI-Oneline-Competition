@@ -57,7 +57,7 @@ class Dataset(torch.utils.data.Dataset):
 
 
 def bert_collate_fn(
-    batch: Iterable[Tuple[str, List[str], List[int]]],
+    batch: Iterable[Tuple[str, List[str], List[str]]],
     tokenizer: PreTrainedTokenizerBase,
     max_length: int,
 ) -> Tuple[Dict[str, torch.Tensor], torch.Tensor]:

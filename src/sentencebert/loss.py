@@ -9,6 +9,17 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 
+def get_similarity(
+    x1: torch.Tensor, x2: torch.Tensor, metric: str = "cosine"
+) -> torch.Tensor:
+    assert metric in ["cosine", "euclidean"]
+    if metric == "cosine":
+        x1 = F.normalize(x1, dim=-1)
+        x2 = F.normalize(x2, dim=-1)
+        return (x1.unsqueeze(1) @ x2.transpose(2, 1)).squeeze()
+    return 1 / (1 + torch.cdist(x1.unsqueeze(1), x2).squeeze())
+
+
 # https://openaccess.thecvf.com/content_CVPR_2020/papers/Sun_Circle_Loss_A_Unified_Perspective_of_Pair_Similarity_Optimization_CVPR_2020_paper.pdf
 class CircleLoss(nn.Module):
     """Implementaion of Circle loss"""
@@ -26,13 +37,6 @@ class CircleLoss(nn.Module):
 
         assert self.metric in ["cosine", "euclidean"]
 
-    def distance(self, x1: torch.Tensor, x2: torch.Tensor) -> torch.Tensor:
-        if self.metric == "cosine":
-            x1 = F.normalize(x1, dim=-1)
-            x2 = F.normalize(x2, dim=-1)
-            return (x1.unsqueeze(1) @ x2.transpose(2, 1)).squeeze()
-        return 1 / (1 + torch.cdist(x1.unsqueeze(1), x2).squeeze())
-
     def forward(
         self,
         anchor: torch.Tensor,
@@ -41,7 +45,7 @@ class CircleLoss(nn.Module):
         pos_weights: Optional[torch.Tensor] = None,
     ) -> torch.Tensor:
         if pos is not None:
-            sp = self.distance(anchor, pos)
+            sp = get_similarity(anchor, pos, self.metric)
             ap = torch.clamp_min(-sp.detach() + 1 + self.m, min=0.0)
             delta_p = 1 - self.m
             weights = 1.0 if pos_weights is None else pos_weights
@@ -51,7 +55,7 @@ class CircleLoss(nn.Module):
             logit_p_logsumexp = torch.tensor(0.0)
 
         if neg is not None:
-            sn = self.distance(anchor, neg)
+            sn = get_similarity(anchor, neg, self.metric)
             an = torch.clamp_min(sn.detach() + self.m, min=0.0)
             delta_n = self.m
             neg_weights = 1.0 if pos_weights is None else pos_weights.mean()

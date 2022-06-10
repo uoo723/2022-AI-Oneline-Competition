@@ -12,7 +12,6 @@ import numpy as np
 import pandas as pd
 import pytorch_lightning as pl
 import torch
-import torch.nn as nn
 from logzero import logger
 from optuna import Trial
 from pytorch_lightning.utilities.types import (
@@ -29,9 +28,10 @@ from transformers import AutoTokenizer
 from .. import base_trainer
 from ..base_trainer import BaseTrainerModel, get_ckpt_path, load_model_hparams
 from ..data import load_data, preprocess_data
-from ..monobert.datasets import Dataset, bert_collate_fn
 from ..metrics import get_mrr
 from ..utils import AttrDict, copy_file, filter_arguments
+from .datasets import Dataset, bert_collate_fn
+from .loss import CircleLoss, get_similarity
 from .models import SentenceBERT
 
 BATCH = Tuple[Dict[str, torch.Tensor], torch.Tensor]
@@ -40,9 +40,6 @@ BATCH = Tuple[Dict[str, torch.Tensor], torch.Tensor]
 class SentenceBERTTrainerModel(BaseTrainerModel):
     MODEL_HPARAMS: Iterable[str] = {
         "pretrained_model_name",
-        "dropout",
-        "linear_size",
-        "use_layernorm",
         "n_feature_layers",
         "proj_dropout",
     }
@@ -50,9 +47,6 @@ class SentenceBERTTrainerModel(BaseTrainerModel):
     def __init__(
         self,
         pretrained_model_name: str = "monologg/koelectra-base-v3-discriminator",
-        linear_size: List[int] = [256],
-        dropout: float = 0.2,
-        use_layernorm: bool = False,
         n_feature_layers: int = 1,
         proj_dropout: float = 0.5,
         max_length: int = 512,
@@ -61,14 +55,14 @@ class SentenceBERTTrainerModel(BaseTrainerModel):
         topk_candidates: int = 50,
         final_topk: int = 10,
         num_neg: int = 1,
+        margin: float = 0.15,
+        gamma: float = 1.0,
+        metric: str = "cosine",
         *args: Any,
         **kwargs: Any,
     ) -> None:
         super().__init__(*args, **kwargs)
         self.pretrained_model_name = pretrained_model_name
-        self.linear_size = linear_size
-        self.dropout = dropout
-        self.use_layernorm = use_layernorm
         self.n_feature_layers = n_feature_layers
         self.proj_dropout = proj_dropout
         self.max_length = max_length
@@ -77,7 +71,8 @@ class SentenceBERTTrainerModel(BaseTrainerModel):
         self.topk_candidates = topk_candidates
         self.final_topk = final_topk
         self.num_neg = num_neg
-        self.loss_fn = nn.BCEWithLogitsLoss()
+        self.metric = metric
+        self.loss_fn = CircleLoss(margin, gamma, metric)
         self.save_hyperparameters(ignore=self.IGNORE_HPARAMS)
 
     @property
@@ -202,23 +197,38 @@ class SentenceBERTTrainerModel(BaseTrainerModel):
         self.tokenizer = AutoTokenizer.from_pretrained(self.pretrained_model_name)
 
     def training_step(self, batch: BATCH, _) -> STEP_OUTPUT:
-        batch_x, batch_y = batch
-        outputs = self.model(batch_x)
-        loss = self.loss_fn(outputs, batch_y)
+        query, pos_doc, pos_doc_len, neg_doc, neg_doc_len = batch
+        batch_size = len(query)
+        assert (pos_doc_len == pos_doc_len[0]).sum() == batch_size
+        assert (neg_doc_len == neg_doc_len[0]).sum() == batch_size
+
+        anchor = self.model(query)
+        pos = self.model(pos_doc).reshape(batch_size, pos_doc_len[0], -1)
+        neg = self.model(neg_doc).reshape(batch_size, neg_doc_len[0], -1)
+
+        loss = self.loss_fn(anchor, pos, neg)
         self.log("loss/train", loss)
         return loss
 
     def _validation_and_test_step(
         self, batch: BATCH, is_val: bool = True
     ) -> Optional[STEP_OUTPUT]:
-        batch_x, batch_y = batch
-        outputs = self.model(batch_x)
-        scores, indices = torch.topk(outputs, k=self.final_topk)
+        query, candidate_doc, candidate_doc_len, _, _ = batch
+        batch_size = len(query)
+        assert (candidate_doc_len == candidate_doc_len[0]).sum() == batch_size
+        anchor = self.model(query)
+        candidate = self.model(candidate_doc).reshape(
+            batch_size, candidate_doc_len[0], -1
+        )
+
+        scores, indices = torch.topk(
+            get_similarity(anchor, candidate, self.metric), k=self.final_topk
+        )
         scores = scores.sigmoid().float().cpu()
         indices = indices.cpu()
 
         if is_val:
-            loss = self.loss_fn(outputs, batch_y)
+            loss = self.loss_fn(anchor, candidate[:, 0], candidate[:, 1:])
             self.log("loss/val", loss)
 
         return scores, indices
@@ -227,7 +237,7 @@ class SentenceBERTTrainerModel(BaseTrainerModel):
         self, outputs: EPOCH_OUTPUT, is_val: bool = True
     ) -> None:
         _, indices = zip(*outputs)
-        indices = np.stack(indices)
+        indices = np.concatenate(indices)
 
         prediction = {}
         for query_id, rank_indices in zip(
@@ -274,7 +284,7 @@ class SentenceBERTTrainerModel(BaseTrainerModel):
 
 def check_args(args: AttrDict) -> None:
     valid_early_criterion = ["mrr"]
-    valid_model_name = ["monoBERT"]
+    valid_model_name = ["sentenceBERT"]
     valid_dataset_name = ["dataset"]
     base_trainer.check_args(
         args, valid_early_criterion, valid_model_name, valid_dataset_name

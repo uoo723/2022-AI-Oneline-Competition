@@ -112,7 +112,7 @@ _monobert_options = [
     optgroup.option('--dropout', type=click.FloatRange(0, 1), default=0.2, help="Dropout for MLP"),
     optgroup.option("--use-layernorm", is_flag=True, default=False, help="Use layernorm in MLP"),
     optgroup.option("--n-feature-layers", type=click.INT, default=1, help="# of layers to be concatenated for outputs"),
-    optgroup.option('--proj-dropout', type=click.FloatRange(0, 1), default=0.5, help="Dropout for projection layer"),
+    optgroup.option("--proj-dropout", type=click.FloatRange(0, 1), default=0.5, help="Dropout for projection layer"),
 ]
 
 _duobert_options = [
@@ -123,7 +123,12 @@ _duobert_options = [
 
 _sentencebert_options = [
     optgroup.group("sentenceBERT Options"),
-    optgroup.option("--test-opt2", type=click.INT, default=256, help="test opt"),
+    optgroup.option("--pretrained-model-name", type=click.STRING, default="monologg/koelectra-base-v3-discriminator", help="Bert pretrained model name"),
+    optgroup.option("--n-feature-layers", type=click.INT, default=1, help="# of layers to be concatenated for outputs"),
+    optgroup.option("--proj-dropout", type=click.FloatRange(0, 1), default=0.5, help="Dropout for projection layer"),
+    optgroup.option("--margin", type=click.FLOAT, default=0.15, help="Margin for circle loss"),
+    optgroup.option("--gamma", type=click.FloatRange(0, 1, min_open=True), default=1.0, help="Scale factor for circle loss"),
+    optgroup.option("--metric", type=click.Choice(["cosine", "euclidean"]), default="cosine", help="Metric for circle loss"),
 ]
 
 # fmt: on
