@@ -46,6 +46,8 @@ class CircleLoss(nn.Module):
     ) -> torch.Tensor:
         if pos is not None:
             sp = get_similarity(anchor, pos, self.metric)
+            if len(sp.shape) == 1:
+                sp = sp.unsqueeze(-1)
             ap = torch.clamp_min(-sp.detach() + 1 + self.m, min=0.0)
             delta_p = 1 - self.m
             weights = 1.0 if pos_weights is None else pos_weights
@@ -56,6 +58,8 @@ class CircleLoss(nn.Module):
 
         if neg is not None:
             sn = get_similarity(anchor, neg, self.metric)
+            if len(sn.shape) == 1:
+                sn = sn.unsqueeze(-1)
             an = torch.clamp_min(sn.detach() + self.m, min=0.0)
             delta_n = self.m
             neg_weights = 1.0 if pos_weights is None else pos_weights.mean()
