@@ -93,11 +93,14 @@ _dataset_options = [
     optgroup.group("Dataset Options"),
     optgroup.option("--data-dir", type=click.Path(exists=True), default="./data", help="Data root directory"),
     optgroup.option("--max-length", type=click.INT, default=512, help="Maximum length of tokens"),
+    optgroup.option("--query-max-length", type=click.INT, default=60, help="Maximum length of query tokens"),
+    optgroup.option("--passage-max-length", type=click.INT, default=512, help="Maximum length of passage tokens"),
     optgroup.option("--shard-idx", type=click.INT, multiple=True, help="Select shard idx"),
     optgroup.option("--shard-size", type=click.INT, default=10000, help="Size of shard"),
     optgroup.option("--topk-candidates", type=click.INT, default=50, help="Topk candidates"),
     optgroup.option("--final-topk", type=click.INT, default=10, help="Final topk predction"),
-    optgroup.option("--num-neg", type=click.INT, required=True, default=1, help="# of negative samples"),
+    optgroup.option("--num-neg", type=click.INT, default=1, help="# of negative samples"),
+    optgroup.option("--num-pos", type=click.INT, default=1, help="# of positive samples"),
 ]
 
 _submission_options = [

@@ -2,7 +2,8 @@
 Created on 2022/06/10
 @author Sangwoo Han
 """
-from typing import Dict, Iterable, List, Tuple
+import os
+from typing import Dict, Iterable, List, Tuple, Union
 
 import numpy as np
 import torch
@@ -18,6 +19,7 @@ class Dataset(torch.utils.data.Dataset):
         query_to_docs: Dict[str, str],
         candidates: Dict[str, List[str]],
         topk: int = 1000,
+        num_pos: int = 1,
         num_neg: int = 5,
         is_training: bool = False,
     ) -> None:
@@ -30,6 +32,7 @@ class Dataset(torch.utils.data.Dataset):
         self.query_to_docs = query_to_docs
         self.candidates = candidates
         self.topk = topk
+        self.num_pos = num_pos
         self.num_neg = num_neg
         self.is_training = is_training
 
@@ -38,16 +41,20 @@ class Dataset(torch.utils.data.Dataset):
 
     def __getitem__(self, idx: int) -> Tuple[str, List[str], List[str]]:
         q_id, query = self.query_ids[idx], self.queries[idx]
-        pos_doc_ids = [d_id for d_id in self.query_to_docs[q_id]]
-        neg_doc_ids = set()
+        pos_doc_ids = []
+        neg_doc_ids = []
 
         if self.is_training:
+            while len(pos_doc_ids) < self.num_pos:
+                ridx = np.random.randint(len(self.query_to_docs[q_id]))
+                pos_doc_ids.append(self.query_to_docs[q_id][ridx])
+
             while len(neg_doc_ids) < self.num_neg:
                 ridx = np.random.randint(len(self.candidates[q_id]))
-                if self.candidates[q_id][ridx] not in pos_doc_ids:
-                    neg_doc_ids.add(self.candidates[q_id][ridx])
+                if self.candidates[q_id][ridx] not in self.query_to_docs[q_id]:
+                    neg_doc_ids.append(self.candidates[q_id][ridx])
         else:
-            # candidates in inference time
+            # candidates in test time
             pos_doc_ids = self.candidates[q_id][: self.topk]
 
         pos_doc_str = [self.docs[doc_id] for doc_id in pos_doc_ids]
@@ -59,8 +66,11 @@ class Dataset(torch.utils.data.Dataset):
 def bert_collate_fn(
     batch: Iterable[Tuple[str, List[str], List[str]]],
     tokenizer: PreTrainedTokenizerBase,
-    max_length: int,
-) -> Tuple[Dict[str, torch.Tensor], torch.Tensor]:
+    query_max_length: int,
+    passage_max_length: int,
+) -> Dict[str, Union[Dict[str, torch.Tensor], torch.Tensor]]:
+    os.environ["TOKENIZERS_PARALLELISM"] = "true"
+
     pos_doc_len = torch.LongTensor([len(b[1]) for b in batch])
     neg_doc_len = torch.LongTensor([len(b[2]) for b in batch])
 
@@ -71,7 +81,7 @@ def bert_collate_fn(
     query_inputs = tokenizer(
         queries,
         return_tensors="pt",
-        max_length=max_length,
+        max_length=query_max_length,
         padding="max_length",
         truncation="longest_first",
     )
@@ -79,7 +89,7 @@ def bert_collate_fn(
     pos_doc_inputs = tokenizer(
         pos_docs,
         return_tensors="pt",
-        max_length=max_length,
+        max_length=passage_max_length,
         padding="max_length",
         truncation="longest_first",
     )
@@ -88,11 +98,18 @@ def bert_collate_fn(
         neg_doc_inputs = tokenizer(
             neg_docs,
             return_tensors="pt",
-            max_length=max_length,
+            max_length=passage_max_length,
             padding="max_length",
             truncation="longest_first",
         )
     else:
         neg_doc_inputs = None
 
-    return query_inputs, pos_doc_inputs, pos_doc_len, neg_doc_inputs, neg_doc_len
+    os.environ["TOKENIZERS_PARALLELISM"] = "false"
+    return {
+        "query_inputs": query_inputs,
+        "pos_doc_inputs": pos_doc_inputs,
+        "pos_doc_len": pos_doc_len,
+        "neg_doc_inputs": neg_doc_inputs,
+        "neg_doc_len": neg_doc_len,
+    }

@@ -29,7 +29,7 @@ from .. import base_trainer
 from ..base_trainer import BaseTrainerModel, get_ckpt_path, load_model_hparams
 from ..data import load_data, preprocess_data
 from ..metrics import get_mrr
-from ..utils import AttrDict, copy_file, filter_arguments
+from ..utils import AttrDict, copy_file, filter_arguments, get_num_batches
 from .datasets import Dataset, bert_collate_fn
 from .loss import CircleLoss, get_similarity
 from .models import SentenceBERT
@@ -49,12 +49,14 @@ class SentenceBERTTrainerModel(BaseTrainerModel):
         pretrained_model_name: str = "monologg/koelectra-base-v3-discriminator",
         n_feature_layers: int = 1,
         proj_dropout: float = 0.5,
-        max_length: int = 512,
+        query_max_length: int = 60,
+        passage_max_length: int = 512,
         shard_idx: List[str] = [0],
         shard_size: int = 10000,
         topk_candidates: int = 50,
         final_topk: int = 10,
         num_neg: int = 1,
+        num_pos: int = 1,
         margin: float = 0.15,
         gamma: float = 1.0,
         metric: str = "cosine",
@@ -65,12 +67,14 @@ class SentenceBERTTrainerModel(BaseTrainerModel):
         self.pretrained_model_name = pretrained_model_name
         self.n_feature_layers = n_feature_layers
         self.proj_dropout = proj_dropout
-        self.max_length = max_length
+        self.query_max_length = query_max_length
+        self.passage_max_length = passage_max_length
         self.shard_idx = shard_idx
         self.shard_size = shard_size
         self.topk_candidates = topk_candidates
         self.final_topk = final_topk
         self.num_neg = num_neg
+        self.num_pos = num_pos
         self.metric = metric
         self.loss_fn = CircleLoss(margin, gamma, metric)
         self.save_hyperparameters(ignore=self.IGNORE_HPARAMS)
@@ -130,6 +134,7 @@ class SentenceBERTTrainerModel(BaseTrainerModel):
                 self.train_query_to_docs,
                 self.candidates,
                 topk=self.topk_candidates,
+                num_pos=self.num_pos,
                 num_neg=self.num_neg,
                 is_training=True,
             )
@@ -158,7 +163,10 @@ class SentenceBERTTrainerModel(BaseTrainerModel):
             shuffle=True,
             num_workers=self.num_workers,
             collate_fn=partial(
-                bert_collate_fn, tokenizer=self.tokenizer, max_length=self.max_length
+                bert_collate_fn,
+                tokenizer=self.tokenizer,
+                query_max_length=self.query_max_length,
+                passage_max_length=self.passage_max_length,
             ),
         )
 
@@ -168,7 +176,10 @@ class SentenceBERTTrainerModel(BaseTrainerModel):
             batch_size=self.test_batch_size,
             num_workers=self.num_workers,
             collate_fn=partial(
-                bert_collate_fn, tokenizer=self.tokenizer, max_length=self.max_length
+                bert_collate_fn,
+                tokenizer=self.tokenizer,
+                query_max_length=self.query_max_length,
+                passage_max_length=self.passage_max_length,
             ),
         )
 
@@ -178,7 +189,10 @@ class SentenceBERTTrainerModel(BaseTrainerModel):
             batch_size=self.test_batch_size,
             num_workers=self.num_workers,
             collate_fn=partial(
-                bert_collate_fn, tokenizer=self.tokenizer, max_length=self.max_length
+                bert_collate_fn,
+                tokenizer=self.tokenizer,
+                query_max_length=self.query_max_length,
+                passage_max_length=self.passage_max_length,
             ),
         )
 
@@ -197,39 +211,66 @@ class SentenceBERTTrainerModel(BaseTrainerModel):
         self.tokenizer = AutoTokenizer.from_pretrained(self.pretrained_model_name)
 
     def training_step(self, batch: BATCH, _) -> STEP_OUTPUT:
-        query, pos_doc, pos_doc_len, neg_doc, neg_doc_len = batch
-        batch_size = len(query)
-        assert (pos_doc_len == pos_doc_len[0]).sum() == batch_size
-        assert (neg_doc_len == neg_doc_len[0]).sum() == batch_size
+        query_inputs: Dict[str, torch.Tensor] = batch["query_inputs"]
+        pos_doc_inputs: Dict[str, torch.Tensor] = batch["pos_doc_inputs"]
+        pos_doc_len: torch.Tensor = batch["pos_doc_len"]
+        neg_doc_inputs: Dict[str, torch.Tensor] = batch["neg_doc_inputs"]
+        neg_doc_len: torch.Tensor = batch["neg_doc_len"]
 
-        anchor = self.model(query)
-        pos = self.model(pos_doc).reshape(batch_size, pos_doc_len[0], -1)
-        neg = self.model(neg_doc).reshape(batch_size, neg_doc_len[0], -1)
+        batch_size = len(pos_doc_len)
+        anchor: torch.Tensor = self.model(query_inputs)
+        pos: torch.Tensor = self.model(pos_doc_inputs)
+        neg: torch.Tensor = self.model(neg_doc_inputs)
+
+        pos = pos.reshape(batch_size, pos_doc_len[0], -1)
+        neg = neg.reshape(batch_size, neg_doc_len[0], -1)
 
         loss = self.loss_fn(anchor, pos, neg)
-        self.log("loss/train", loss)
+        self.log("loss/train", loss, batch_size=batch_size)
         return loss
 
     def _validation_and_test_step(
         self, batch: BATCH, is_val: bool = True
     ) -> Optional[STEP_OUTPUT]:
-        query, candidate_doc, candidate_doc_len, _, _ = batch
-        batch_size = len(query)
-        assert (candidate_doc_len == candidate_doc_len[0]).sum() == batch_size
-        anchor = self.model(query)
-        candidate = self.model(candidate_doc).reshape(
-            batch_size, candidate_doc_len[0], -1
-        )
+        query_inputs: Dict[str, torch.Tensor] = batch["query_inputs"]
+        candidate_doc_inputs: Dict[str, torch.Tensor] = batch["pos_doc_inputs"]
+        candidate_doc_len: torch.Tensor = batch["pos_doc_len"]
 
-        scores, indices = torch.topk(
-            get_similarity(anchor, candidate, self.metric), k=self.final_topk
-        )
-        scores = scores.sigmoid().float().cpu()
-        indices = indices.cpu()
+        batch_size = len(candidate_doc_len)
+
+        anchor: torch.Tensor = self.model(query_inputs)
+        scores = []
+        indices = []
+        losses = []
+        bs = 0
+        for i, doc_len in enumerate(candidate_doc_len):
+            be = bs + doc_len.item()
+            num_batches = get_num_batches(batch_size, doc_len.item())
+            candidate = []
+            for b in range(num_batches):
+                candidate.append(
+                    self.model(
+                        {
+                            k: v[bs:be][b * batch_size : (b + 1) * batch_size]
+                            for k, v in candidate_doc_inputs.items()
+                        }
+                    )
+                )
+            bs = be
+            candidate = torch.cat(candidate).unsqueeze(0)
+            sim = get_similarity(anchor[i : i + 1], candidate)
+            s, idx = torch.topk(sim, k=self.final_topk)
+            scores.append(s.sigmoid().float().cpu())
+            indices.append(idx.cpu())
+            if is_val:
+                losses.append(self.loss_fn(anchor[i : i + 1], candidate[:, :1]))
+
+        scores = torch.stack(scores)
+        indices = torch.stack(indices)
 
         if is_val:
-            loss = self.loss_fn(anchor, candidate[:, 0], candidate[:, 1:])
-            self.log("loss/val", loss)
+            losses = torch.stack(losses)
+            self.log("loss/val", losses.mean(), batch_size=batch_size)
 
         return scores, indices
 
@@ -238,7 +279,6 @@ class SentenceBERTTrainerModel(BaseTrainerModel):
     ) -> None:
         _, indices = zip(*outputs)
         indices = np.concatenate(indices)
-
         prediction = {}
         for query_id, rank_indices in zip(
             self.sub_train_query_ids[self.valid_ids][: len(indices)], indices
@@ -414,7 +454,7 @@ def predict(args: AttrDict) -> Any:
     for q_id, doc_ids in tqdm(test_candidates.items(), desc="inference..."):
         query_str = test_queries[q_id]
         doc_ids = np.array(doc_ids)
-        num_batches = (len(doc_ids[:topk]) + batch_size - 1) // batch_size
+        num_batches = get_num_batches(batch_size, topk)
         predictions = []
         for b in range(num_batches):
             doc_str = [
