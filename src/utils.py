@@ -71,3 +71,9 @@ def copy_file(src: str, dst: str) -> None:
         shutil.copyfile(src, dst)
     except shutil.SameFileError:
         pass
+
+
+def get_num_batches(batch_size: int, num_samples: int, drop_last: bool = False) -> int:
+    if drop_last:
+        return num_samples // batch_size
+    return (num_samples + batch_size - 1) // batch_size

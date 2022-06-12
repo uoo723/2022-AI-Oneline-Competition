@@ -30,7 +30,7 @@ from .. import base_trainer
 from ..base_trainer import BaseTrainerModel, get_ckpt_path, load_model_hparams
 from ..data import load_data, preprocess_data
 from ..metrics import get_mrr
-from ..utils import AttrDict, copy_file, filter_arguments
+from ..utils import AttrDict, copy_file, filter_arguments, get_num_batches
 from .datasets import Dataset, bert_collate_fn
 from .models import MonoBERT
 
@@ -404,7 +404,7 @@ def predict(args: AttrDict) -> Any:
     for q_id, doc_ids in tqdm(test_candidates.items(), desc="inference..."):
         query_str = test_queries[q_id]
         doc_ids = np.array(doc_ids)
-        num_batches = (len(doc_ids[:topk]) + batch_size - 1) // batch_size
+        num_batches = get_num_batches(batch_size, topk)
         predictions = []
         for b in range(num_batches):
             doc_str = [
