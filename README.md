@@ -70,17 +70,24 @@ $rank_i$: $i$-th query에 대해 relevant item이 처음으로 등장한 rank.
 
 ## Log
 
+[2022.06.12]
+
+- SentenceBERT 모델 구현
+- SentenceBERT training 구현
+
 [2022.06.10]
 
 - BM25 (50 candidates) + monoBERT (base) 실험
-- Public score: 0.98489
+- Public score: 0.98489 (#4)
+- +SWA -> Public score: 0.98631 (#5)
+- +encoder ensemble -> Public score: 0.98642 (#6)
 
 [2022.06.09]
 
 - BM25 (50 candidates) + monoBERT (small) 실험
-- Public score: 0.98371
+- Public score: 0.98371 (#2)
 - BM25 (100 candidates) + monoBERT (small) 실험
-- Public score: 0.98415
+- Public score: 0.98415 (#3)
 
 [2022.06.08]
 
@@ -90,4 +97,4 @@ $rank_i$: $i$-th query에 대해 relevant item이 처음으로 등장한 rank.
 [2022.06.07]
 
 - BM25 baseline 실험
-- Public score: 0.94657
+- Public score: 0.94657 (#1)
