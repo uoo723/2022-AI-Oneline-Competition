@@ -134,6 +134,16 @@ _sentencebert_options = [
     optgroup.option("--metric", type=click.Choice(["cosine", "euclidean"]), default="cosine", help="Metric for circle loss"),
 ]
 
+_colbert_options = [
+    optgroup.group("colBERT Options"),
+    optgroup.option("--pretrained-model-name", type=click.STRING, default="monologg/koelectra-base-v3-discriminator", help="Bert pretrained model name"),
+    optgroup.option("--n-feature-layers", type=click.INT, default=1, help="# of layers to be concatenated for outputs"),
+    optgroup.option("--proj-dropout", type=click.FloatRange(0, 1), default=0.5, help="Dropout for projection layer"),
+    optgroup.option("--margin", type=click.FLOAT, default=0.15, help="Margin for circle loss"),
+    optgroup.option("--gamma", type=click.FloatRange(0, 1, min_open=True), default=1.0, help="Scale factor for circle loss"),
+    optgroup.option("--metric", type=click.Choice(["cosine", "euclidean"]), default="cosine", help="Metric for circle loss"),
+]
+
 # fmt: on
 
 
@@ -196,6 +206,23 @@ def train_sentencebert(ctx: click.core.Context, **args: Any) -> None:
     train_model("sentenceBERT", **args)
 
 
+@cli.command(context_settings={"show_default": True})
+@add_options(_train_options)
+@add_options(_log_options)
+@add_options(_dataset_options)
+@add_options(_submission_options)
+@add_options(_colbert_options)
+@click.pass_context
+def train_colbert(ctx: click.core.Context, **args: Any) -> None:
+    """Train ColBERT"""
+    if ctx.obj["save_args"] is not None:
+        save_args(args, ctx.obj["save_args"])
+        return
+    args["shard_idx"] = list(args["shard_idx"])
+    os.environ["TOKENIZERS_PARALLELISM"] = "false"
+    train_model("colBERT", **args)
+
+
 @log_elapsed_time
 def train_model(
     train_name: str,
@@ -204,13 +231,15 @@ def train_model(
     enable_trial_pruning: bool = False,
     **args: Any,
 ) -> None:
-    assert train_name in ["monoBERT", "duoBERT", "sentenceBERT"]
+    assert train_name in ["monoBERT", "duoBERT", "sentenceBERT", "colBERT"]
     if train_name == "monoBERT":
         import src.monobert.trainer as trainer
     elif train_name == "duoBERT":
         import src.duobert.trainer as trainer
     elif train_name == "sentenceBERT":
         import src.sentencebert.trainer as trainer
+    elif train_name == "colBERT":
+        import src.colbert.trainer as trainer
 
     args = AttrDict(args)
 

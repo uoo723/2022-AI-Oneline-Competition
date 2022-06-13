@@ -31,7 +31,7 @@ from ..data import load_data, preprocess_data
 from ..metrics import get_mrr
 from ..utils import AttrDict, copy_file, filter_arguments, get_num_batches
 from .datasets import Dataset, bert_collate_fn
-from .loss import CircleLoss, get_similarity
+from .loss import CircleLoss
 from .models import ColBERT, LateInteraction
 
 BATCH = Tuple[Dict[str, torch.Tensor], torch.Tensor]
@@ -78,8 +78,8 @@ class ColBERTTrainerModel(BaseTrainerModel):
         self.final_topk = final_topk
         self.num_neg = num_neg
         self.num_pos = num_pos
-        self.metric = metric
-        self.loss_fn = CircleLoss(margin, gamma, metric)
+        self.metric = metric  # not used
+        self.loss_fn = CircleLoss(margin, gamma)
         self.late_interaction = LateInteraction()
         self.save_hyperparameters(ignore=self.IGNORE_HPARAMS)
 
@@ -217,19 +217,28 @@ class ColBERTTrainerModel(BaseTrainerModel):
     def training_step(self, batch: BATCH, _) -> STEP_OUTPUT:
         query_inputs: Dict[str, torch.Tensor] = batch["query_inputs"]
         pos_doc_inputs: Dict[str, torch.Tensor] = batch["pos_doc_inputs"]
-        pos_doc_len: torch.Tensor = batch["pos_doc_len"]
         neg_doc_inputs: Dict[str, torch.Tensor] = batch["neg_doc_inputs"]
-        neg_doc_len: torch.Tensor = batch["neg_doc_len"]
 
-        batch_size = len(pos_doc_len)
+        batch_size = len(query_inputs["input_ids"])
+
         anchor: torch.Tensor = self.model(query_inputs)
         pos: torch.Tensor = self.model(pos_doc_inputs)
         neg: torch.Tensor = self.model(neg_doc_inputs)
 
-        pos = pos.reshape(batch_size, pos_doc_len[0], -1)
-        neg = neg.reshape(batch_size, neg_doc_len[0], -1)
+        pos_score = self.late_interaction(
+            anchor,
+            pos,
+            query_inputs["attention_mask"],
+            pos_doc_inputs["attention_mask"],
+        )
+        neg_score = self.late_interaction(
+            anchor,
+            neg,
+            query_inputs["attention_mask"],
+            neg_doc_inputs["attention_mask"],
+        )
 
-        loss = self.loss_fn(anchor, pos, neg)
+        loss = self.loss_fn(pos_score, neg_score)
         self.log("loss/train", loss, batch_size=batch_size)
         return loss
 
@@ -245,36 +254,34 @@ class ColBERTTrainerModel(BaseTrainerModel):
         anchor: torch.Tensor = self.model(query_inputs)
         scores = []
         indices = []
-        losses = []
         bs = 0
         for i, doc_len in enumerate(candidate_doc_len):
             be = bs + doc_len.item()
             num_batches = get_num_batches(batch_size, doc_len.item())
             candidate = []
+            attention_mask = []
             for b in range(num_batches):
-                candidate.append(
-                    self.model(
-                        {
-                            k: v[bs:be][b * batch_size : (b + 1) * batch_size]
-                            for k, v in candidate_doc_inputs.items()
-                        }
-                    )
-                )
+                doc_inputs = {
+                    k: v[bs:be][b * batch_size : (b + 1) * batch_size]
+                    for k, v in candidate_doc_inputs.items()
+                }
+                attention_mask.append(doc_inputs["attention_mask"])
+                candidate.append(self.model(doc_inputs))
             bs = be
+            attention_mask = torch.cat(attention_mask)
             candidate = torch.cat(candidate).unsqueeze(0)
-            sim = get_similarity(anchor[i : i + 1], candidate)
+            sim = self.late_interaction(
+                anchor[i : i + 1],
+                candidate,
+                query_inputs["attention_mask"][i : i + 1],
+                attention_mask.unsqueeze(0),
+            ).squeeze()
             s, idx = torch.topk(sim, k=self.final_topk)
             scores.append(s.sigmoid().float().cpu())
             indices.append(idx.cpu())
-            if is_val:
-                losses.append(self.loss_fn(anchor[i : i + 1], candidate[:, :1]))
 
         scores = torch.stack(scores)
         indices = torch.stack(indices)
-
-        if is_val:
-            losses = torch.stack(losses)
-            self.log("loss/val", losses.mean(), batch_size=batch_size)
 
         return scores, indices
 
@@ -283,6 +290,7 @@ class ColBERTTrainerModel(BaseTrainerModel):
     ) -> None:
         _, indices = zip(*outputs)
         indices = np.concatenate(indices)
+        logger.debug(f"indices.shape: {indices.shape}")
         prediction = {}
         for query_id, rank_indices in zip(
             self.sub_train_query_ids[self.valid_ids][: len(indices)], indices
@@ -328,7 +336,7 @@ class ColBERTTrainerModel(BaseTrainerModel):
 
 def check_args(args: AttrDict) -> None:
     valid_early_criterion = ["mrr"]
-    valid_model_name = ["sentenceBERT"]
+    valid_model_name = ["colBERT"]
     valid_dataset_name = ["dataset"]
     base_trainer.check_args(
         args, valid_early_criterion, valid_model_name, valid_dataset_name

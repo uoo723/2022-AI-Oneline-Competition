@@ -68,10 +68,12 @@ class LateInteraction(nn.Module):
         if len(x1_mask.shape) == 2:
             x1_mask = x1_mask.unsqueeze(-1)
 
-        if len(x2_mask.shape) == 2:
+        if len(x2_mask.shape) == 2 or (len(x2.shape) == 4 and len(x2_mask.shape) == 3):
             x2_mask = x2_mask.unsqueeze(-1)
 
         x1 = F.normalize(x1, dim=-1) * x1_mask
         x2 = F.normalize(x2, dim=-1) * x2_mask
+        if len(x2.shape) == 4:
+            x1 = x1.unsqueeze(1)
         sim = x1 @ x2.transpose(-1, -2)
         return sim.max(dim=-1)[0].sum(dim=-1)
