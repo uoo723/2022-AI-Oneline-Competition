@@ -19,8 +19,7 @@ def load_data(
         train_data = json.load(f1)
         test_data = json.load(f2)
     test_question = pd.read_csv("./data/test_questions.csv", encoding="utf8")
-    submission = pd.read_csv("./data/sample_submission.csv", encoding="utf8")
-    return train_data, test_data, test_question, submission
+    return train_data, test_data, test_question
 
 
 def preprocess_data(

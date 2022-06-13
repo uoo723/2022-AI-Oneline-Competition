@@ -85,7 +85,7 @@ class MonoBERTTrainerModel(BaseTrainerModel):
         return MonoBERTTrainerModel.MODEL_HPARAMS
 
     def prepare_data(self) -> None:
-        self.train_data, _, _, _ = load_data(self.data_dir)
+        self.train_data, _, _ = load_data(self.data_dir)
 
         self.train_queries, self.train_docs, self.train_query_to_docs = preprocess_data(
             self.train_data
@@ -338,7 +338,7 @@ def predict(args: AttrDict) -> Any:
 
     ################################# Load Data ########################################
     logger.info("Load Data...")
-    _, test_data, test_question, submission = load_data(args.data_dir)
+    _, test_data, test_question = load_data(args.data_dir)
     _, test_docs = preprocess_data(test_data, return_query_to_docs=False)
     test_queries = dict(
         zip(test_question["question_id"], test_question["question_text"])
@@ -432,7 +432,9 @@ def predict(args: AttrDict) -> Any:
 
     ############################### Make Submission ####################################
     logger.info("Make submission")
-    submission["paragraph_id"] = answers
+    submission = pd.DataFrame(
+        data={"question_id": test_question["question_id"], "paragraph_id": answers}
+    )
     submission.to_csv(args.submission_output, index=False)
     logger.info(f"Saved into {args.submission_output}")
     ####################################################################################
