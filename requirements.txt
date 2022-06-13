@@ -1,4 +1,4 @@
-# torch==1.9.0
+torch==1.9.0
 numpy==1.21.2
 tqdm==4.62.3
 click==8.0.1
@@ -25,3 +25,4 @@ black==22.3.0
 isort==5.10.1
 jupyterlab-code-formatter==1.4.11
 ipywidgets==7.7.0
+setuptools==59.5.0
