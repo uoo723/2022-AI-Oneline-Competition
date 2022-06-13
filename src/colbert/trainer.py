@@ -12,6 +12,7 @@ import numpy as np
 import pandas as pd
 import pytorch_lightning as pl
 import torch
+import torch.nn as nn
 from logzero import logger
 from optuna import Trial
 from pytorch_lightning.utilities.types import (
@@ -24,6 +25,7 @@ from sklearn.model_selection import train_test_split
 from torch.utils.data import DataLoader, Subset
 from tqdm.auto import tqdm
 from transformers import AutoTokenizer
+from transformers.tokenization_utils_base import PreTrainedTokenizerBase
 
 from .. import base_trainer
 from ..base_trainer import BaseTrainerModel, get_ckpt_path, load_model_hparams
@@ -373,6 +375,53 @@ def test(
     )
 
 
+def _get_answers(
+    tokenizer: PreTrainedTokenizerBase,
+    q_ids: List[str],
+    test_queries: Dict[str, str],
+    candidate_doc_ids: List[np.ndarray],
+    model: nn.Module,
+    late_interaction: nn.Module,
+    doc_embed_map: Dict[str, Dict[str, torch.Tensor]],
+    query_max_length: int = 60,
+    topk: int = 10,
+    device: torch.device = torch.device("cpu"),
+) -> List[str]:
+    assert len(q_ids) == len(candidate_doc_ids)
+
+    query_str = [test_queries[_id] for _id in q_ids]
+    query_inputs: Dict[str, torch.Tensor] = tokenizer(
+        query_str,
+        return_tensors="pt",
+        max_length=query_max_length,
+        padding="max_length",
+        truncation="longest_first",
+    )
+    with torch.no_grad():
+        query_embeds = model({k: v.to(device) for k, v in query_inputs.items()})
+
+    answers = []
+    for i, (query_embed, c_doc_ids) in enumerate(zip(query_embeds, candidate_doc_ids)):
+        doc_embed = (
+            torch.stack([doc_embed_map[d_id]["embed"] for d_id in c_doc_ids])
+            .unsqueeze(0)
+            .to(device)
+        )
+        doc_attention_mask: torch.Tensor = (
+            torch.stack([doc_embed_map[d_id]["attention_mask"] for d_id in c_doc_ids])
+            .unsqueeze(0)
+            .to(device)
+        )
+        query_attention_mask = query_inputs["attention_mask"][i : i + 1].to(device)
+        scores: torch.Tensor = late_interaction(
+            query_embed, doc_embed, query_attention_mask, doc_attention_mask
+        )
+        rank = scores.squeeze().cpu().numpy().argsort()[::-1]
+        answers.append(",".join(c_doc_ids[rank][:topk]))
+
+    return answers
+
+
 def predict(args: AttrDict) -> Any:
     assert args.mode == "predict", "mode must be predict"
     assert args.run_id is not None, "run_id must be specified"
@@ -459,20 +508,21 @@ def predict(args: AttrDict) -> Any:
     batch_size = args.test_batch_size
     query_max_length = args.query_max_length
     passage_max_length = args.passage_max_length
-    topk = args.topk_candidates
     doc_embed_map = {}
     answers = []
 
     model.eval()
+    q_ids = []
+    candidate_doc_ids = []
     for q_id, doc_ids in tqdm(test_candidates.items(), desc="inference..."):
-        query_str = test_queries[q_id]
         doc_ids = np.array(doc_ids)
-        num_batches = get_num_batches(batch_size, topk)
-        candidate_doc_ids = doc_ids[:topk]
+        q_ids.append(q_id)
+        candidate_doc_ids.append(doc_ids[: args.topk_candidates])
+        num_batches = get_num_batches(batch_size, len(doc_ids[: args.topk_candidates]))
         for b in range(num_batches):
             filtered_candidate_doc_ids = []
             doc_str = []
-            for d_id in candidate_doc_ids[b * batch_size : (b + 1) * batch_size]:
+            for d_id in candidate_doc_ids[-1][b * batch_size : (b + 1) * batch_size]:
                 if d_id not in doc_embed_map:
                     doc_str.append(test_docs[d_id])
                     filtered_candidate_doc_ids.append(d_id)
@@ -495,35 +545,45 @@ def predict(args: AttrDict) -> Any:
                         "attention_mask": doc_inputs["attention_mask"][i],
                     }
 
-        query_inputs: Dict[str, torch.Tensor] = tokenizer(
-            [query_str],
-            return_tensors="pt",
-            max_length=query_max_length,
-            padding="max_length",
-            truncation="longest_first",
-        )
-        with torch.no_grad():
-            query_embed = model({k: v.to(args.device) for k, v in query_inputs.items()})
-
-        doc_embed = (
-            torch.stack([doc_embed_map[d_id]["embed"] for d_id in candidate_doc_ids])
-            .unsqueeze(0)
-            .to(args.device)
-        )
-        doc_attention_mask: torch.Tensor = (
-            torch.stack(
-                [doc_embed_map[d_id]["attention_mask"] for d_id in candidate_doc_ids]
+        if len(q_ids) == batch_size:
+            answers.extend(
+                _get_answers(
+                    tokenizer,
+                    q_ids,
+                    test_queries,
+                    candidate_doc_ids,
+                    model,
+                    late_interaction,
+                    doc_embed_map,
+                    query_max_length,
+                    args.final_topk,
+                    args.device,
+                )
             )
-            .unsqueeze(0)
-            .to(args.device)
-        )
-        query_attention_mask = query_inputs["attention_mask"].to(args.device)
-        scores: torch.Tensor = late_interaction(
-            query_embed, doc_embed, query_attention_mask, doc_attention_mask
-        )
-        rank = scores.squeeze().cpu().numpy().argsort()[::-1]
-        answers.append(",".join(candidate_doc_ids[rank][: args.final_topk]))
 
+            q_ids.clear()
+            candidate_doc_ids.clear()
+
+    if q_ids:
+        answers.extend(
+            _get_answers(
+                tokenizer,
+                q_ids,
+                test_queries,
+                candidate_doc_ids,
+                model,
+                late_interaction,
+                doc_embed_map,
+                query_max_length,
+                args.final_topk,
+                args.device,
+            )
+        )
+
+        q_ids.clear()
+        candidate_doc_ids.clear()
+
+    assert len(answers) == len(test_candidates)
     os.environ["TOKENIZERS_PARALLELISM"] = "false"
     ####################################################################################
 
