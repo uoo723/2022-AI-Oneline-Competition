@@ -290,7 +290,6 @@ class ColBERTTrainerModel(BaseTrainerModel):
     ) -> None:
         _, indices = zip(*outputs)
         indices = np.concatenate(indices)
-        logger.debug(f"indices.shape: {indices.shape}")
         prediction = {}
         for query_id, rank_indices in zip(
             self.sub_train_query_ids[self.valid_ids][: len(indices)], indices
