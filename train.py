@@ -106,6 +106,7 @@ _dataset_options = [
 _submission_options = [
     optgroup.group("Submission Options"),
     optgroup.option("--submission-output", type=click.Path(), default="./submissions/submission.csv", help="Output path for submssion"),
+    optgroup.option("--topk-filepath", type=click.Path(exists=True), help="Topk candidate list files"),
 ]
 
 _monobert_options = [

@@ -343,12 +343,18 @@ def predict(args: AttrDict) -> Any:
     test_queries = dict(
         zip(test_question["question_id"], test_question["question_text"])
     )
-    test_query_id_i2s = dict(zip(range(len(test_queries)), test_queries.keys()))
 
-    tsv_path = os.path.join(args.data_dir, "top1000", "test_top1000_00.txt")
-    df = pd.read_csv(tsv_path, sep=" ", header=None)
-    df[0] = df[0].map(lambda x: test_query_id_i2s[x])
-    test_candidates: Dict[str, List[str]] = df.groupby(0)[2].apply(list).to_dict()
+    if args.topk_filepath:
+        df = pd.read_csv(args.topk_filepath)
+        test_candidates = dict(
+            zip(df["question_id"], [d.split(",") for d in df["paragraph_id"]])
+        )
+    else:
+        test_query_id_i2s = dict(zip(range(len(test_queries)), test_queries.keys()))
+        tsv_path = os.path.join(args.data_dir, "top1000", "test_top1000_00.txt")
+        df = pd.read_csv(tsv_path, sep=" ", header=None)
+        df[0] = df[0].map(lambda x: test_query_id_i2s[x])
+        test_candidates: Dict[str, List[str]] = df.groupby(0)[2].apply(list).to_dict()
     ####################################################################################
 
     ################################## Load Model ######################################
