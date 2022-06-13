@@ -419,6 +419,7 @@ def predict(args: AttrDict) -> Any:
     )
 
     model = ColBERT(**filter_arguments(hparams, ColBERT))
+    late_interaction = LateInteraction()
 
     ckpt_path = get_ckpt_path(args.log_dir, args.run_id, load_best=True)
     ckpt = torch.load(ckpt_path, map_location="cpu")
@@ -440,12 +441,11 @@ def predict(args: AttrDict) -> Any:
         avg_state_dict.pop("models_num")
         state_dict.update(avg_state_dict)
 
-    state_dict = OrderedDict(
-        zip(
-            [key.replace("model.", "") for key in state_dict.keys()],
-            state_dict.values(),
-        )
-    )
+    state_dict = {
+        k.replace("model.", ""): v
+        for k, v in state_dict.items()
+        if not k.startswith("late_interaction")
+    }
 
     model.load_state_dict(state_dict)
     model.to(args.device)
@@ -457,8 +457,10 @@ def predict(args: AttrDict) -> Any:
     os.environ["TOKENIZERS_PARALLELISM"] = "true"
 
     batch_size = args.test_batch_size
-    max_length = args.max_length
+    query_max_length = args.query_max_length
+    passage_max_length = args.passage_max_length
     topk = args.topk_candidates
+    doc_embed_map = {}
     answers = []
 
     model.eval()
@@ -466,27 +468,61 @@ def predict(args: AttrDict) -> Any:
         query_str = test_queries[q_id]
         doc_ids = np.array(doc_ids)
         num_batches = get_num_batches(batch_size, topk)
-        predictions = []
+        candidate_doc_ids = doc_ids[:topk]
         for b in range(num_batches):
-            doc_str = [
-                test_docs[d_id]
-                for d_id in doc_ids[:topk][b * batch_size : (b + 1) * batch_size]
-            ]
-            inputs: Dict[str, torch.Tensor] = tokenizer(
-                [query_str] * len(doc_str),
-                doc_str,
-                return_tensors="pt",
-                max_length=max_length,
-                padding="max_length",
-                truncation="longest_first",
-            )
-            with torch.no_grad():
-                outputs: torch.Tensor = model(
-                    {k: v.to(args.device) for k, v in inputs.items()}
+            filtered_candidate_doc_ids = []
+            doc_str = []
+            for d_id in candidate_doc_ids[b * batch_size : (b + 1) * batch_size]:
+                if d_id not in doc_embed_map:
+                    doc_str.append(test_docs[d_id])
+                    filtered_candidate_doc_ids.append(d_id)
+
+            if doc_str:
+                doc_inputs: Dict[str, torch.Tensor] = tokenizer(
+                    doc_str,
+                    return_tensors="pt",
+                    max_length=passage_max_length,
+                    padding="max_length",
+                    truncation="longest_first",
                 )
-            predictions.append(outputs.cpu())
-        rank = np.concatenate(predictions).argsort()[::-1]
-        answers.append(",".join(doc_ids[:topk][rank][: args.final_topk]))
+                with torch.no_grad():
+                    doc_embed: torch.Tensor = model(
+                        {k: v.to(args.device) for k, v in doc_inputs.items()}
+                    )
+                for i, d_id in enumerate(filtered_candidate_doc_ids):
+                    doc_embed_map[d_id] = {
+                        "embed": doc_embed[i].cpu(),
+                        "attention_mask": doc_inputs["attention_mask"][i],
+                    }
+
+        query_inputs: Dict[str, torch.Tensor] = tokenizer(
+            [query_str],
+            return_tensors="pt",
+            max_length=query_max_length,
+            padding="max_length",
+            truncation="longest_first",
+        )
+        with torch.no_grad():
+            query_embed = model({k: v.to(args.device) for k, v in query_inputs.items()})
+
+        doc_embed = (
+            torch.stack([doc_embed_map[d_id]["embed"] for d_id in candidate_doc_ids])
+            .unsqueeze(0)
+            .to(args.device)
+        )
+        doc_attention_mask: torch.Tensor = (
+            torch.stack(
+                [doc_embed_map[d_id]["attention_mask"] for d_id in candidate_doc_ids]
+            )
+            .unsqueeze(0)
+            .to(args.device)
+        )
+        query_attention_mask = query_inputs["attention_mask"].to(args.device)
+        scores: torch.Tensor = late_interaction(
+            query_embed, doc_embed, query_attention_mask, doc_attention_mask
+        )
+        rank = scores.squeeze().cpu().numpy().argsort()[::-1]
+        answers.append(",".join(candidate_doc_ids[rank][: args.final_topk]))
 
     os.environ["TOKENIZERS_PARALLELISM"] = "false"
     ####################################################################################
