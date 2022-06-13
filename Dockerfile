@@ -23,7 +23,8 @@ RUN git clone https://github.com/zsh-users/zsh-syntax-highlighting.git \
     perl -pi -e 's/plugins\=\(git\)/plugins\=\(git zsh-syntax-highlighting alias-tips\)/g' ~/.zshrc
 
 COPY requirements.txt requirements.txt
-
 RUN pip install --ignore-installed -r requirements.txt --no-cache-dir
+
+ENV PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION=python
 
 WORKDIR /workspace
