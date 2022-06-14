@@ -4,8 +4,10 @@ Created on 2022/06/08
 """
 from typing import List, Optional
 
+import numpy as np
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 
 
 class LinearLayer(nn.Module):
@@ -63,4 +65,19 @@ class MLPLayer(nn.Module):
     def forward(self, inputs: torch.FloatTensor) -> torch.FloatTensor:
         outputs = self.input_layers(inputs)
         outputs = self.output_layer(outputs)
+        return outputs
+
+
+class MLAttention(nn.Module):
+    def __init__(self, hidden_size: int, num_hidden: int) -> None:
+        super().__init__()
+        self.attention = nn.Linear(hidden_size, num_hidden, bias=False)
+        nn.init.xavier_uniform_(self.attention.weight)
+
+    def forward(self, inputs: torch.Tensor, masks: torch.Tensor) -> torch.Tensor:
+        masks = torch.unsqueeze(masks, -2).bool()
+        attention: torch.Tensor = self.attention(inputs)
+        attention = attention.transpose(-1, -2).masked_fill(~masks, -np.inf)
+        attention = F.softmax(attention, -1)
+        outputs = attention @ inputs
         return outputs

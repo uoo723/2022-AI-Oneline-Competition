@@ -24,7 +24,7 @@ from pytorch_lightning.utilities.types import (
 from sklearn.model_selection import train_test_split
 from torch.utils.data import DataLoader, Subset
 from tqdm.auto import tqdm
-from transformers import AutoTokenizer
+from transformers import AutoConfig, AutoTokenizer
 from transformers.tokenization_utils_base import PreTrainedTokenizerBase
 
 from .. import base_trainer
@@ -34,7 +34,7 @@ from ..metrics import get_mrr
 from ..utils import AttrDict, copy_file, filter_arguments, get_num_batches
 from .datasets import Dataset, bert_collate_fn
 from .loss import CircleLoss
-from .models import ColBERT, LateInteraction
+from .models import AttentionLateInteraction, ColBERT, LateInteraction
 
 BATCH = Tuple[Dict[str, torch.Tensor], torch.Tensor]
 
@@ -44,6 +44,11 @@ class ColBERTTrainerModel(BaseTrainerModel):
         "pretrained_model_name",
         "n_feature_layers",
         "proj_dropout",
+        "use_attention_late_interaction",
+        "linear_size",
+        "dropout",
+        "use_layernorm",
+        "query_max_length",
     }
 
     def __init__(
@@ -62,6 +67,10 @@ class ColBERTTrainerModel(BaseTrainerModel):
         margin: float = 0.15,
         gamma: float = 1.0,
         metric: str = "cosine",
+        use_attention_late_interaction: bool = False,
+        linear_size: List[int] = [256],
+        dropout: float = 0.2,
+        use_layernorm: bool = False,
         *args: Any,
         **kwargs: Any,
     ) -> None:
@@ -81,8 +90,11 @@ class ColBERTTrainerModel(BaseTrainerModel):
         self.num_neg = num_neg
         self.num_pos = num_pos
         self.metric = metric  # not used
+        self.use_attention_late_interaction = use_attention_late_interaction
+        self.linear_size = linear_size
+        self.dropout = dropout
+        self.use_layernorm = use_layernorm
         self.loss_fn = CircleLoss(margin, gamma)
-        self.late_interaction = LateInteraction()
         self.save_hyperparameters(ignore=self.IGNORE_HPARAMS)
 
     @property
@@ -214,6 +226,18 @@ class ColBERTTrainerModel(BaseTrainerModel):
         self.model = ColBERT(
             **filter_arguments(hparams, ColBERT),
         )
+
+        if hparams.get("use_attention_late_interaction", False):
+            hidden_size = AutoConfig.from_pretrained(
+                hparams["pretrained_model_name"]
+            ).hidden_size
+            self.late_interaction = AttentionLateInteraction(
+                hidden_size=hidden_size,
+                **filter_arguments(hparams, AttentionLateInteraction),
+            )
+        else:
+            self.late_interaction = LateInteraction()
+
         self.tokenizer = AutoTokenizer.from_pretrained(self.pretrained_model_name)
 
     def training_step(self, batch: BATCH, _) -> STEP_OUTPUT:
@@ -468,9 +492,21 @@ def predict(args: AttrDict) -> Any:
     hparams = load_model_hparams(
         args.log_dir, args.run_id, ColBERTTrainerModel.MODEL_HPARAMS
     )
+    use_attention_late_interaction = hparams.get(
+        "use_attention_late_interaction", False
+    )
 
     model = ColBERT(**filter_arguments(hparams, ColBERT))
-    late_interaction = LateInteraction()
+    if use_attention_late_interaction:
+        hidden_size = AutoConfig.from_pretrained(
+            hparams["pretrained_model_name"]
+        ).hidden_size
+        late_interaction = AttentionLateInteraction(
+            hidden_size=hidden_size,
+            **filter_arguments(hparams, AttentionLateInteraction),
+        )
+    else:
+        late_interaction = LateInteraction()
 
     ckpt_path = get_ckpt_path(args.log_dir, args.run_id, load_best=True)
     ckpt = torch.load(ckpt_path, map_location="cpu")
@@ -492,14 +528,24 @@ def predict(args: AttrDict) -> Any:
         avg_state_dict.pop("models_num")
         state_dict.update(avg_state_dict)
 
-    state_dict = {
+    model_state_dict = {
         k.replace("model.", ""): v
         for k, v in state_dict.items()
         if not k.startswith("late_interaction")
     }
 
-    model.load_state_dict(state_dict)
+    model.load_state_dict(model_state_dict)
     model.to(args.device)
+
+    if use_attention_late_interaction:
+        late_interaction_state_dict = {
+            k.replace("model.", ""): v
+            for k, v in state_dict.items()
+            if k.startswith("late_interaction")
+        }
+        late_interaction.load_state_dict(late_interaction_state_dict)
+        late_interaction.to(args.device)
+
     tokenizer = AutoTokenizer.from_pretrained(hparams["pretrained_model_name"])
     ####################################################################################
 

@@ -143,6 +143,10 @@ _colbert_options = [
     optgroup.option("--margin", type=click.FLOAT, default=0.15, help="Margin for circle loss"),
     optgroup.option("--gamma", type=click.FloatRange(0, 1, min_open=True), default=1.0, help="Scale factor for circle loss"),
     optgroup.option("--metric", type=click.Choice(["cosine", "euclidean"]), default="cosine", help="Metric for circle loss"),
+    optgroup.option("--use-attention-late-interaction", is_flag=True, default=False, help="Use attention late interaction"),
+    optgroup.option("--linear-size", type=click.INT, multiple=True, default=[256], help="linear size for attention late interaction"),
+    optgroup.option('--dropout', type=click.FloatRange(0, 1), default=0.2, help="Dropout for MLP of attention late interaction"),
+    optgroup.option("--use-layernorm", is_flag=True, default=False, help="Use layernorm in MLP of attention late interaction"),
 ]
 
 # fmt: on
@@ -219,6 +223,7 @@ def train_colbert(ctx: click.core.Context, **args: Any) -> None:
     if ctx.obj["save_args"] is not None:
         save_args(args, ctx.obj["save_args"])
         return
+    args["linear_size"] = list(args["linear_size"])
     args["shard_idx"] = list(args["shard_idx"])
     os.environ["TOKENIZERS_PARALLELISM"] = "false"
     train_model("colBERT", **args)

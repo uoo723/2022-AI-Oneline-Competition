@@ -2,13 +2,14 @@
 Created on 2022/06/13
 @author Sangwoo Han
 """
-from typing import Dict, Optional
+from typing import Dict, List, Optional
 
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from transformers import AutoConfig, AutoModel
 
+from ..modules import MLAttention, MLPLayer
 from ..utils import filter_arguments
 
 
@@ -77,3 +78,37 @@ class LateInteraction(nn.Module):
             x1 = x1.unsqueeze(1)
         sim = x1 @ x2.transpose(-1, -2)
         return sim.max(dim=-1)[0].sum(dim=-1)
+
+
+class AttentionLateInteraction(nn.Module):
+    def __init__(
+        self,
+        hidden_size: int,
+        query_max_length: int,
+        linear_size: List[int],
+        dropout: float = 0.2,
+        use_layernorm: bool = False,
+    ) -> None:
+        super().__init__()
+        self.attention1 = MLAttention(hidden_size, query_max_length)
+        self.attention2 = MLAttention(hidden_size * 2, 1)
+        self.linear = MLPLayer(hidden_size * 2, 1, dropout, linear_size, use_layernorm)
+
+    def forward(
+        self,
+        query: torch.Tensor,
+        passage: torch.Tensor,
+        query_mask: Optional[torch.Tensor] = None,
+        passage_mask: Optional[torch.Tensor] = None,
+    ) -> torch.Tensor:
+        if query_mask is None:
+            query_mask = torch.ones_like(query)
+        if passage_mask is None:
+            passage_mask = torch.ones_like(passage)
+
+        outputs = self.attention1(passage, passage_mask)
+        if len(outputs.shape) == 4:
+            query = query.expand(query.shape[0], outputs.shape[1], *query.shape[1:])
+        outputs = self.attention2(torch.cat([query, outputs], dim=-1), query_mask)
+        outputs: torch.Tensor = self.linear(outputs)
+        return outputs.squeeze()
