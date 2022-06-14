@@ -3,8 +3,8 @@ Created on 2022/06/13
 @author Sangwoo Han
 """
 import os
-from collections import OrderedDict
 from functools import partial
+from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional, Tuple
 
 import click
@@ -436,6 +436,8 @@ def predict(args: AttrDict) -> Any:
             " Overwrite it?",
             abort=True,
         )
+
+    Path(args.submission_output).touch()
 
     ############################# Save runscript #######################################
     os.makedirs(os.path.dirname(args.submission_output), exist_ok=True)
