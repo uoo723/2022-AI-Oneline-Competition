@@ -135,6 +135,11 @@ class ColBERTTrainerModel(BaseTrainerModel):
             self.data_dir, self.shard_idx, self.train_queries, n_jobs=self.num_workers
         )
         for shard_idx in self.shard_idx:
+            self.sub_train_query_ids.extend(
+                self.train_query_ids[
+                    shard_idx * self.shard_size : (shard_idx + 1) * self.shard_size
+                ]
+            )
             self.sub_train_query_str.extend(
                 self.train_query_str[
                     shard_idx * self.shard_size : (shard_idx + 1) * self.shard_size
