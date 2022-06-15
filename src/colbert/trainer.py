@@ -34,7 +34,7 @@ from ..metrics import get_mrr
 from ..utils import AttrDict, copy_file, filter_arguments, get_num_batches
 from .datasets import Dataset, bert_collate_fn
 from .loss import CircleLoss
-from .models import AttentionLateInteraction, ColBERT, LateInteraction
+from .models import ColBERT, LateInteraction, TransformerLateInteraction
 
 BATCH = Tuple[Dict[str, torch.Tensor], torch.Tensor]
 
@@ -44,11 +44,11 @@ class ColBERTTrainerModel(BaseTrainerModel):
         "pretrained_model_name",
         "n_feature_layers",
         "proj_dropout",
-        "use_attention_late_interaction",
-        "linear_size",
+        "use_transformer_late_interaction",
         "dropout",
-        "use_layernorm",
-        "query_max_length",
+        "dim_feedforward",
+        "n_heads",
+        "n_layers",
     }
 
     def __init__(
@@ -67,10 +67,11 @@ class ColBERTTrainerModel(BaseTrainerModel):
         margin: float = 0.15,
         gamma: float = 1.0,
         metric: str = "cosine",
-        use_attention_late_interaction: bool = False,
-        linear_size: List[int] = [256],
-        dropout: float = 0.2,
-        use_layernorm: bool = False,
+        use_transformer_late_interaction: bool = False,
+        dropout: float = 0.1,
+        dim_feedforward: int = 1024,
+        n_heads: int = 4,
+        n_layers: int = 4,
         *args: Any,
         **kwargs: Any,
     ) -> None:
@@ -90,10 +91,11 @@ class ColBERTTrainerModel(BaseTrainerModel):
         self.num_neg = num_neg
         self.num_pos = num_pos
         self.metric = metric  # not used
-        self.use_attention_late_interaction = use_attention_late_interaction
-        self.linear_size = linear_size
+        self.use_transformer_late_interaction = use_transformer_late_interaction
         self.dropout = dropout
-        self.use_layernorm = use_layernorm
+        self.dim_feedforward = dim_feedforward
+        self.n_heads = n_heads
+        self.n_layers = n_layers
         self.loss_fn = CircleLoss(margin, gamma)
         self.save_hyperparameters(ignore=self.IGNORE_HPARAMS)
 
@@ -227,14 +229,15 @@ class ColBERTTrainerModel(BaseTrainerModel):
             **filter_arguments(hparams, ColBERT),
         )
 
-        if hparams.get("use_attention_late_interaction", False):
+        if hparams.get("use_transformer_late_interaction", False):
             hidden_size = AutoConfig.from_pretrained(
                 hparams["pretrained_model_name"]
             ).hidden_size
-            self.late_interaction = AttentionLateInteraction(
+            self.late_interaction = TransformerLateInteraction(
                 hidden_size=hidden_size,
-                **filter_arguments(hparams, AttentionLateInteraction),
+                **filter_arguments(hparams, TransformerLateInteraction),
             )
+            assert self.query_max_length + self.passage_max_length <= 512
         else:
             self.late_interaction = LateInteraction()
 
@@ -492,18 +495,18 @@ def predict(args: AttrDict) -> Any:
     hparams = load_model_hparams(
         args.log_dir, args.run_id, ColBERTTrainerModel.MODEL_HPARAMS
     )
-    use_attention_late_interaction = hparams.get(
-        "use_attention_late_interaction", False
+    use_transformer_late_interaction = hparams.get(
+        "use_transformer_late_interaction", False
     )
 
     model = ColBERT(**filter_arguments(hparams, ColBERT))
-    if use_attention_late_interaction:
+    if use_transformer_late_interaction:
         hidden_size = AutoConfig.from_pretrained(
             hparams["pretrained_model_name"]
         ).hidden_size
-        late_interaction = AttentionLateInteraction(
+        late_interaction = TransformerLateInteraction(
             hidden_size=hidden_size,
-            **filter_arguments(hparams, AttentionLateInteraction),
+            **filter_arguments(hparams, TransformerLateInteraction),
         )
     else:
         late_interaction = LateInteraction()
@@ -537,7 +540,7 @@ def predict(args: AttrDict) -> Any:
     model.load_state_dict(model_state_dict)
     model.to(args.device)
 
-    if use_attention_late_interaction:
+    if use_transformer_late_interaction:
         late_interaction_state_dict = {
             k.replace("model.", ""): v
             for k, v in state_dict.items()
