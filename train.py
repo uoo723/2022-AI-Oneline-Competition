@@ -144,10 +144,14 @@ _colbert_options = [
     optgroup.option("--gamma", type=click.FloatRange(0, 1, min_open=True), default=1.0, help="Scale factor for circle loss"),
     optgroup.option("--metric", type=click.Choice(["cosine", "euclidean"]), default="cosine", help="Metric for circle loss"),
     optgroup.option("--use-transformer-late-interaction", is_flag=True, default=False, help="Use transformer late interaction"),
+    optgroup.option("--linear-size", type=click.INT, multiple=True, default=[128], help="linear size for transformer late interaction"),
+    optgroup.option('--linear-dropout', type=click.FloatRange(0, 1), default=0.2, help="Dropout for MLP of transformer late interaction"),
     optgroup.option('--dropout', type=click.FloatRange(0, 1), default=0.1, help="Dropout for transformer late interaction"),
+    optgroup.option("--use-layernorm", is_flag=True, default=False, help="Use layernorm in MLP of transformer late interaction"),
     optgroup.option("--dim-feedforward", type=click.INT, default=1024, help="Feedforward dimension of transformer late interaction"),
     optgroup.option("--n-layers", type=click.INT, default=4, help="# of layers of transformer late interaction"),
     optgroup.option("--n-heads", type=click.INT, default=4, help="# of heads of transformer late interaction"),
+    optgroup.option("--loss-type", type=click.Choice(['circle', 'bce']), default='circle', help="Type of loss function"),
 ]
 
 # fmt: on
@@ -224,6 +228,7 @@ def train_colbert(ctx: click.core.Context, **args: Any) -> None:
     if ctx.obj["save_args"] is not None:
         save_args(args, ctx.obj["save_args"])
         return
+    args["linear_size"] = list(args["linear_size"])
     args["shard_idx"] = list(args["shard_idx"])
     os.environ["TOKENIZERS_PARALLELISM"] = "false"
     train_model("colBERT", **args)

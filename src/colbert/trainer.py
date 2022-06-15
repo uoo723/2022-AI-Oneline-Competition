@@ -45,10 +45,13 @@ class ColBERTTrainerModel(BaseTrainerModel):
         "n_feature_layers",
         "proj_dropout",
         "use_transformer_late_interaction",
+        "linear_size",
+        "linear_dropout",
         "dropout",
         "dim_feedforward",
         "n_heads",
         "n_layers",
+        "use_layernorm",
     }
 
     def __init__(
@@ -68,10 +71,14 @@ class ColBERTTrainerModel(BaseTrainerModel):
         gamma: float = 1.0,
         metric: str = "cosine",
         use_transformer_late_interaction: bool = False,
+        linear_size: List[int] = [128],
+        linear_dropout: float = 0.2,
         dropout: float = 0.1,
         dim_feedforward: int = 1024,
         n_heads: int = 4,
         n_layers: int = 4,
+        use_layernorm: bool = False,
+        loss_type: str = "circle",
         *args: Any,
         **kwargs: Any,
     ) -> None:
@@ -92,11 +99,18 @@ class ColBERTTrainerModel(BaseTrainerModel):
         self.num_pos = num_pos
         self.metric = metric  # not used
         self.use_transformer_late_interaction = use_transformer_late_interaction
+        self.linear_size = linear_size
+        self.linear_dropout = linear_dropout
         self.dropout = dropout
         self.dim_feedforward = dim_feedforward
         self.n_heads = n_heads
         self.n_layers = n_layers
-        self.loss_fn = CircleLoss(margin, gamma)
+        self.use_layernorm = use_layernorm
+        self.loss_type = loss_type
+        if loss_type == "circle":
+            self.loss_fn = CircleLoss(margin, gamma)
+        else:
+            self.loss_fn = nn.BCEWithLogitsLoss()
         self.save_hyperparameters(ignore=self.IGNORE_HPARAMS)
 
     @property
@@ -267,7 +281,15 @@ class ColBERTTrainerModel(BaseTrainerModel):
             neg_doc_inputs["attention_mask"],
         )
 
-        loss = self.loss_fn(pos_score, neg_score)
+        if self.loss_type == "circle":
+            loss = self.loss_fn(pos_score, neg_score)
+        else:
+            label = torch.zeros(anchor.shape[0], 2).to(self.device).to(pos_score.dtype)
+            label[:, 0] = 1
+            loss = self.loss_fn(
+                torch.cat([pos_score.unsqueeze(-1), neg_score.unsqueeze(-1)], dim=-1),
+                label,
+            )
         self.log("loss/train", loss, batch_size=batch_size)
         return loss
 

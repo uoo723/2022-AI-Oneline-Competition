@@ -122,7 +122,10 @@ class TransformerLateInteraction(nn.Module):
         n_layers: int = 4,
         dim_feedforward: int = 1024,
         dropout: float = 0.1,
+        use_layernorm: bool = False,
         layernorm_eps: float = 1e-12,
+        linear_size: List[int] = [128],
+        linear_dropout: float = 0.2,
     ) -> None:
         super().__init__()
         encoder_layer = nn.TransformerEncoderLayer(
@@ -137,6 +140,14 @@ class TransformerLateInteraction(nn.Module):
         self.encoder = nn.TransformerEncoder(encoder_layer, num_layers=n_layers)
         self.type_embeddings = nn.Embedding(2, hidden_size)
         self.position_embeddings = nn.Embedding(512, hidden_size)
+        self.linear = MLPLayer(
+            input_size=hidden_size,
+            output_size=1,
+            linear_size=linear_size,
+            dropout=linear_dropout,
+            use_layernorm=use_layernorm,
+            layernorm_eps=layernorm_eps,
+        )
         self.register_buffer("position_ids", torch.arange(512).unsqueeze(0))
 
     def forward(
@@ -154,12 +165,6 @@ class TransformerLateInteraction(nn.Module):
         query_length = query.shape[-2]
         passage_length = passage.shape[-2]
 
-        q_mask = query_mask
-        p_mask = passage_mask
-
-        query_embeds = query
-        passage_embeds = passage
-
         position_ids = self.position_ids[:, : query_length + passage_length]
         type_ids = (
             torch.LongTensor([0] * query_length + [1] * passage_length)
@@ -172,30 +177,14 @@ class TransformerLateInteraction(nn.Module):
 
         if len(passage.shape) == 4:
             assert query.shape[0] == passage.shape[0] == 1
-            q_mask = q_mask.expand(passage.shape[1], *q_mask.shape[1:])
-            p_mask = p_mask.squeeze()
-            query_embeds = query.expand(passage.shape[1], *query.shape[1:])
-            passage_embeds = passage.squeeze()
+            query_mask = query_mask.expand(passage.shape[1], *query_mask.shape[1:])
+            passage_mask = passage_mask.squeeze()
+            query = query.expand(passage.shape[1], *query.shape[1:])
+            passage = passage.squeeze()
 
-        input_embeds = torch.cat([query_embeds, passage_embeds], dim=-2)
+        input_embeds = torch.cat([query, passage], dim=-2)
         input_embeds = input_embeds + position_embeds + type_embeds
-        mask = torch.cat([q_mask, p_mask], dim=-1)
-        outputs: torch.Tensor = self.encoder(
-            input_embeds, src_key_padding_mask=~mask.bool()
-        )
-
-        query_outputs = outputs[:, :query_length]
-        passage_outputs = outputs[:, query_length:]
-
-        if len(query_mask.shape) == 2:
-            query_mask = query_mask.squeeze().unsqueeze(-1)
-
-        if len(passage_mask.shape) == 2 or (
-            len(passage.shape) == 4 and len(passage_mask.shape) == 3
-        ):
-            passage_mask = passage_mask.squeeze().unsqueeze(-1)
-
-        query_outputs = F.normalize(query_outputs, dim=-1) * query_mask
-        passage_outputs = F.normalize(passage_outputs, dim=-1) * passage_mask
-        sim = query_outputs @ passage_outputs.transpose(-1, -2)
-        return sim.max(dim=-1)[0].sum(dim=-1)
+        mask = torch.cat([query_mask, passage_mask], dim=-1)
+        outputs = self.encoder(input_embeds, src_key_padding_mask=~mask.bool())
+        outputs: torch.Tensor = self.linear(outputs[:, 0])
+        return outputs.squeeze()
