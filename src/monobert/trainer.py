@@ -29,7 +29,7 @@ from transformers import AutoTokenizer
 
 from .. import base_trainer
 from ..base_trainer import BaseTrainerModel, get_ckpt_path, load_model_hparams
-from ..data import load_data, preprocess_data
+from ..data import load_data, load_shard, preprocess_data
 from ..metrics import get_mrr
 from ..utils import AttrDict, copy_file, filter_arguments, get_num_batches
 from .datasets import Dataset, bert_collate_fn
@@ -94,21 +94,15 @@ class MonoBERTTrainerModel(BaseTrainerModel):
 
         self.train_query_ids = list(self.train_queries.keys())
         self.train_query_str = list(self.train_queries.values())
-        query_id_i2s = dict(
-            zip(np.arange(len(self.train_query_str)).tolist(), self.train_query_ids)
-        )
 
         self.sub_train_query_ids = []
         self.sub_train_query_str = []
-        self.candidates = {}
 
-        logger.info("Loading shard...")
+        logger.info(f"Loading shard... {self.shard_idx}")
+        self.candidates = load_shard(
+            self.data_dir, self.shard_idx, self.train_queries, n_jobs=self.num_workers
+        )
         for shard_idx in self.shard_idx:
-            filename = f"train_top1000_{shard_idx:02d}.txt"
-            tsv_path = os.path.join(self.data_dir, "top1000", filename)
-            df = pd.read_csv(tsv_path, sep=" ", header=None)
-            df[0] = df[0].map(lambda x: query_id_i2s[x])
-            self.candidates.update(df.groupby(0)[2].apply(list).to_dict())
             self.sub_train_query_ids.extend(
                 self.train_query_ids[
                     shard_idx * self.shard_size : (shard_idx + 1) * self.shard_size
@@ -119,7 +113,6 @@ class MonoBERTTrainerModel(BaseTrainerModel):
                     shard_idx * self.shard_size : (shard_idx + 1) * self.shard_size
                 ]
             )
-            logger.info(f"Completed loading shard {shard_idx} among {self.shard_idx}")
 
         self.sub_train_query_ids = np.array(self.sub_train_query_ids)
         self.sub_train_query_str = np.array(self.sub_train_query_str)
