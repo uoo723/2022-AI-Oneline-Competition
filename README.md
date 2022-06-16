@@ -8,6 +8,7 @@
     - [과제 설명](#과제-설명)
     - [평가지표](#평가지표)
     - [모델 사전 조사](#모델-사전-조사)
+  - [Experiments](#experiments)
   - [Log](#log)
 ---
 
@@ -68,7 +69,26 @@ $rank_i$: $i$-th query에 대해 relevant item이 처음으로 등장한 rank.
 
 ---
 
+## Experiments
+
+| Model                                                                   | MRR@10 (Public Score) | Submission # |
+|-------------------------------------------------------------------------|-----------------------|--------------|
+| BM25                                                                    | 0.94637               | #1           |
+| BM25 (50 candidates) + monoBERT (small)                                 | 0.98371               | #2           |
+| BM25 (100 candidates) + monoBERT (small)                                | 0.98415               | #3           |
+| BM25 (50 candidates) + monoBERT (base)                                  | 0.98489               | #4           |
+| BM25 (50 candidates) + monoBERT (base, SWA)                             | 0.98631               | #5           |
+| BM25 (50 candidates) + monoBERT (base, SWA, ENC-Ensemble)               | 0.98642               | #6           |
+| BM25 (1000 candidates) + ColBERT (small, 50 candidates) + monoBERT (#6) | 0.99010               | #10          |
+| BM25 (500 candidates) + ColBERT (base, 50 candidates) + monoBERT (#6)   | 0.99047               | #12          |
+| BM25 (500 candidates) + ColBERT (#12) + monoBERT (#6 + all data)        | 0.99143               | #16          |
+
 ## Log
+
+[2022.06.13]
+
+- ColBERT 모델 구현
+- ColBERT training 구현
 
 [2022.06.12]
 
