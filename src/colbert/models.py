@@ -165,14 +165,19 @@ class TransformerLateInteraction(nn.Module):
         query_length = query.shape[-2]
         passage_length = passage.shape[-2]
 
-        position_ids = self.position_ids[:, : query_length + passage_length]
+        query_position_ids = self.position_ids[:, :query_length]
+        passage_position_ids = self.position_ids[:, :passage_length]
         type_ids = (
             torch.LongTensor([0] * query_length + [1] * passage_length)
             .unsqueeze(0)
             .to(query.device)
         )
 
-        position_embeds = self.position_embeddings(position_ids)
+        query_position_embeds = self.position_embeddings(query_position_ids)
+        passage_position_embeds = self.position_embeddings(passage_position_ids)
+        position_embeds = torch.cat(
+            [query_position_embeds, passage_position_embeds], dim=-2
+        )
         type_embeds = self.type_embeddings(type_ids)
 
         if len(passage.shape) == 4:
