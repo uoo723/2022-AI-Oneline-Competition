@@ -46,15 +46,23 @@ class Dataset(torch.utils.data.Dataset):
                 ridx = np.random.randint(len(self.candidates[q_id]))
                 if self.candidates[q_id][ridx] not in pos_doc_ids:
                     neg_doc_ids.add(self.candidates[q_id][ridx])
+            labels = [1] * len(pos_doc_ids) + [0] * len(neg_doc_ids)
         else:
             # candidates in inference time
-            pos_doc_ids = self.candidates[q_id][: self.topk]
+            candidate_doc_ids = self.candidates[q_id][: self.topk]
+            pos_ids_idx = []
+            for pos_doc_id in pos_doc_ids:
+                if pos_doc_id in candidate_doc_ids:
+                    pos_ids_idx.append(candidate_doc_ids.index(pos_doc_id))
+            labels = [0] + len(candidate_doc_ids)
+            for idx in pos_ids_idx:
+                labels[idx] = 1
+            pos_doc_ids = candidate_doc_ids
 
         pos_doc_str = [self.docs[doc_id] for doc_id in pos_doc_ids]
         neg_doc_str = [self.docs[doc_id] for doc_id in neg_doc_ids]
 
         queries = [query] * (len(pos_doc_str) + len(neg_doc_str))
-        labels = [1] * len(pos_doc_str) + [0] * len(neg_doc_str)
 
         return queries, pos_doc_str + neg_doc_str, labels
 
