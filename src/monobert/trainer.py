@@ -46,6 +46,8 @@ class MonoBERTTrainerModel(BaseTrainerModel):
         "use_layernorm",
         "n_feature_layers",
         "proj_dropout",
+        "use_conv",
+        "kernel_size",
     }
 
     def __init__(
@@ -56,6 +58,8 @@ class MonoBERTTrainerModel(BaseTrainerModel):
         use_layernorm: bool = False,
         n_feature_layers: int = 1,
         proj_dropout: float = 0.5,
+        use_conv: bool = False,
+        kernel_size: int = 2,
         max_length: int = 512,
         shard_idx: List[str] = [0],
         shard_size: int = 10000,
@@ -72,6 +76,8 @@ class MonoBERTTrainerModel(BaseTrainerModel):
         self.use_layernorm = use_layernorm
         self.n_feature_layers = n_feature_layers
         self.proj_dropout = proj_dropout
+        self.use_conv = use_conv
+        self.kernel_size = kernel_size
         self.max_length = max_length
         self.shard_idx = shard_idx
         self.shard_size = shard_size

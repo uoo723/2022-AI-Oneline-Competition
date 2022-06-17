@@ -117,6 +117,8 @@ _monobert_options = [
     optgroup.option("--use-layernorm", is_flag=True, default=False, help="Use layernorm in MLP"),
     optgroup.option("--n-feature-layers", type=click.INT, default=1, help="# of layers to be concatenated for outputs"),
     optgroup.option("--proj-dropout", type=click.FloatRange(0, 1), default=0.5, help="Dropout for projection layer"),
+    optgroup.option("--use-conv", is_flag=True, default=False, help="Use conv layer to aggregate encoder outputs"),
+    optgroup.option("--kernel-size", type=click.INT, default=2, help="Kernel size of Conv1d"),
 ]
 
 _duobert_options = [
