@@ -9,6 +9,9 @@
     - [평가지표](#평가지표)
     - [모델 사전 조사](#모델-사전-조사)
   - [사용 방법론](#사용-방법론)
+    - [Overall](#overall)
+    - [monoBERT (3rd-stage retrieval)](#monobert-3rd-stage-retrieval)
+    - [ColBERT (2nd-stage retrieval)](#colbert-2nd-stage-retrieval)
   - [Instruction](#instruction)
     - [디렉토리 구조](#디렉토리-구조)
       - [Python 명령 스크립트](#python-명령-스크립트)
@@ -79,7 +82,43 @@ $rank_i$: $i$-th query에 대해 relevant item이 처음으로 등장한 rank.
 
 ## 사용 방법론
 
-"...the **go to** statement should be abolished..." [[1]](#ref1).
+### Overall
+
+![그림1](https://user-images.githubusercontent.com/7765506/174442496-4cb06864-a876-4b64-87b6-7bf457bbe381.jpg)
+
+- Multi-stage retrieval 방식 사용 [[1]](#ref1).
+- 전통적으로 Bag-of-Words (TF-IDF, BM25)를 사용하는 exact matching 방식은 computation latency가 짧기 때문에 대용량 문서 corpus에서 효과적이나 vocabulary mismatch [[6](#ref6), [9](#ref9), [10](#ref10)]가 발생됨.
+- 반면에 단어 간 semantic 및 문맥을 고려할 수 있는 neural 모델 같은 경우 vocabulary mismatch 문제를 완화할 수 있지만, computation 비용이 비싸기 때문에 latency가 길어지는 문제가 발생.
+- 따라서 BM25와 같은 가벼운 알고리즘으로 neural 모델이 처리할 수 있는 적절한 양의 문서 candidate를 추려서 neural model에서 re-ranking 함.
+- 또, re-ranking한 문서를 추려서 다시 또 다른 모델로 re-ranking할 수도 있음. 이를 multi-stage retrieval 이라고 함.
+
+![그림2](https://user-images.githubusercontent.com/7765506/174444541-88a66eaa-158e-4f54-b791-1c0b5e9f03f0.jpg)
+
+- Neural 모델을 사용하는 방식은 크게 2가지 분류로 나뉨.
+- `Interaction-based` 같은 경우 query term, document term 간의 matching signal를 만들어 matching pattern을 학습하는 방식.
+  - 즉, query, document의 score function을 학습한다고 생각하면 됨. $s_{ij} = f_{\theta}(q_i,d_j)$
+- 반면에 `Representation-based` 같은 경우 query, document 각각 representation를 학습하여 비교적 가벼운 similarity function (e.g. cosine) 으로 score를 계산하게 됨.
+  - $s_{ij} = sim(g_{\theta_1}(q_i),h_{\theta_2}(d_j))$
+- `Interaction-based` vs. `Representation-based` [[6]](#ref6)
+  - `Interaction-based`은 query-document term의 matching pattern를 학습하기 때문에 성능은 우수하나 score를 계산하기 위해 항상 query-document pair로 입력해야 하기 때문에 inference가 느림.
+  - `Representation-based`은 document representation을 caching할 수 있기 때문에 inference는 `Interaction-based`보다는 빠름. 하지만 성능은 비교적 떨어짐.
+- `Multi-stage Retrieval`
+  - 2가지 장점을 적절히 사용하기 위해 두 방식 모두 사용하기로 함.
+  - BM25 -> xxx candidates -> `Representation-based` -> xx candidates -> `Interaction-based` -> 10 candidates
+  - 비교적 inference 빠른 `Representation-based` 모델에서 100 자릿수 문서 re-ranking (e.g. 500 candidates).
+  - 성능을 극대화하기 위해 추려진 문서 `Interaction-based` 모델에서 10 자릿수 문서 re-ranking (e.g. 50 candidates).
+  - 최종 상위 10개 문서 추출 (과제 요구사항).
+
+### monoBERT (3rd-stage retrieval)
+
+- 위의 `Interaction-based` 모델 그림이 ***monoBERT*** [[1]](#ref1) 모델 구조 (기존 paper에서는 2nd-stage 모델).
+- Query-Document pair가 BERT [[11]](#ref11)의 input으로 들어가고, [CLS] 토큰을 MLP에 통과시켜 score를 output함.
+- 따라서 loss는 multi-label 분류 모델에서 쓰는 것과 동일한 binary cross entroy를 사용함 (relevant: 1, non-relevant: 0).
+- Relevant 문서는 query당 1개씩 밖에 없기 때문에 sampling이 필요없고, non-relevant 문서는 BM25에서 추출한 1,000개 문서에서 랜덤으로 sampling하여 사용함.
+
+### ColBERT (2nd-stage retrieval)
+
+![그림3](https://user-images.githubusercontent.com/7765506/174447759-c5fbcd05-0208-4431-80d9-6a76798c1da9.jpg)
 
 ---
 
@@ -181,7 +220,7 @@ python 명령 스크립트 argument 관리 및 명령 파이프라인 자동화�
 
 ### Reproduction
 
-※ 모든 명령 실행은 프로젝트 디레토리에서 실행 및 실행 시간 측정을 위해 `time` command 사용.
+※ 모든 명령 실행은 프로젝트 디렉토리에서 실행 및 실행 시간 측정을 위해 `time` command 사용.
 
 #### 데이터 전처리
 
@@ -259,3 +298,10 @@ time ./scripts/run_preprocess.sh
 <a id="ref7">[7]</a> P. Izmailov et al. [Averaging Weights Leads to Wider Optima and Better Generalization](https://arxiv.org/abs/1803.05407). UAI 2018.
 
 <a id="ref8">[8]</a> B. Athiwaratkun et al. [There Are Many Consistent Explanations of Unlabeled Data: Why You Should Average](https://arxiv.org/abs/1806.05594). ICLR 2019.
+
+<a id="ref9">[9]</a> G. W. Furnas et al. [The vocabulary problem in human-system communication](https://dl.acm.org/doi/10.1145/32206.32212). Commun ACM 30 (11)
+(1987) 964–971.
+
+<a id="ref10">[10]</a> L. Zhao et al. [Term necessity prediction](https://dl.acm.org/doi/10.1145/1871437.1871474). CIKM 2010.
+
+<a id="ref11">[11]</a> J. Devlin. [BERT: Pre-training of Deep Bidirectional Transformers for Language Understanding](https://arxiv.org/abs/1810.04805). arXiv preprint 2019.
