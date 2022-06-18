@@ -54,7 +54,7 @@ class Dataset(torch.utils.data.Dataset):
             for pos_doc_id in pos_doc_ids:
                 if pos_doc_id in candidate_doc_ids:
                     pos_ids_idx.append(candidate_doc_ids.index(pos_doc_id))
-            labels = [0] + len(candidate_doc_ids)
+            labels = [0] * len(candidate_doc_ids)
             for idx in pos_ids_idx:
                 labels[idx] = 1
             pos_doc_ids = candidate_doc_ids
