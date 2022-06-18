@@ -16,5 +16,6 @@ def cli(ctx: click.core.Context, save_args):
 if __name__ == "__main__":
     from hp_tuning import *
     from train import *
+    from preprocess import *
 
     cli()
