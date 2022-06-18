@@ -84,6 +84,8 @@ _train_options = [
 _log_options = [
     optgroup.group("Log Options"),
     optgroup.option("--log-dir", type=click.Path(), default="./logs", help="log directory"),
+    optgroup.option("--tmp-dir", type=click.Path(), default="./tmp", help="Temp file directory"),
+    optgroup.option("--log-run-id", is_flag=True, default=False, help="Log run id to tmp dir"),
     optgroup.option("--experiment-name", type=click.STRING, default="baseline", help="experiment name"),
     optgroup.option("--run-name", type=click.STRING, help="Set Run Name for MLFLow"),
     optgroup.option("--tags", type=(str, str), multiple=True, help="Set mlflow run tags"),
@@ -272,6 +274,14 @@ def train_model(
             trial=trial,
             enable_trial_pruning=enable_trial_pruning,
         )
+
+        if args.log_run_id:
+            run_id_path = os.path.join(
+                args.tmp_dir, f"{args.run_name or train_name}_run_id"
+            )
+            os.makedirs(os.path.dirname(run_id_path), exist_ok=True)
+            with open(run_id_path, "w", encoding="utf8") as f:
+                f.write(pl_trainer.logger.run_id)
 
     if args.mode == "test":
         logger.info("Test mode")

@@ -7,15 +7,19 @@ export MLFLOW_EXPERIMENT_NAME=monoBERT
 DATASET=dataset
 MODEL=monoBERT
 
+RUN_ID=${RUN_ID:-e5f00870e79d42b392778ba40a171c01}
+TOPK_FILE=${TOPK_FILE:-top500_colbert_b6ec5451b76743229b9a40a41f53230a.csv}
+
 args=(
     --model-name $MODEL
     --dataset-name $DATASET
     --run-script $0
     --mode "predict"
-    --submission-output "./submissions/submission3.csv"
-    --run-id "bd45f678b6a041cb875ed1bb84b6bee4"
-    --topk-candidates 100
-    --test-batch-size 100
+    --submission-output "./submissions/submission23.csv"
+    --run-id "$RUN_ID"
+    --topk-candidates 50
+    --test-batch-size 50
+    --topk-filepath "./submissions/$TOPK_FILE"
 )
 
 python main.py train-monobert "${args[@]}"

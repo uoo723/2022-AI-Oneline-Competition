@@ -6,17 +6,20 @@ export MLFLOW_EXPERIMENT_NAME=ColBERT
 
 DATASET=dataset
 MODEL=colBERT
+RUN_ID=${RUN_ID:-b6ec5451b76743229b9a40a41f53230a}
+TOPK=${TOPK:-500}
 
 args=(
     --model-name $MODEL
     --dataset-name $DATASET
     --run-script $0
     --mode "predict"
-    --submission-output "./submissions/submission8.csv"
-    --run-id "7f26132ba3914fc1b85d656b358684ce"
-    --topk-candidates 200
-    --test-batch-size 50
-    --query-max-length 60
+    --submission-output "./submissions/top${TOPK}_colbert_$RUN_ID.csv"
+    --run-id "$RUN_ID"
+    --topk-candidates $TOPK
+    --final-topk $TOPK
+    --test-batch-size 64
+    --query-max-length 80
     --passage-max-length 512
 )
 
