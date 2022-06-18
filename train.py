@@ -40,6 +40,7 @@ _train_options = [
         default="train",
         help="train: train and test are executed. test: test only, predict: make prediction",
     ),
+    optgroup.option("--skip-test", is_flag=True, default=False, help="If set to true, skip test after training"),
     optgroup.option("--run-id", type=click.STRING, help="MLFlow Run ID for resume training"),
     optgroup.option("--model-name", type=click.STRING, required=True, help="Model name"),
     optgroup.option("--dataset-name", type=click.STRING, required=True, default="dataset", help="Dataset name"),
@@ -275,10 +276,11 @@ def train_model(
     if args.mode == "test":
         logger.info("Test mode")
 
-    try:
-        return trainer.test(args, pl_trainer, is_hptuning=is_hptuning)
-    except Exception as e:
-        if pl_trainer:
-            pl_logger = pl_trainer.logger
-            pl_logger.experiment.set_terminated(pl_logger.run_id, status="FAILED")
-        raise e
+    if not args.skip_test:
+        try:
+            return trainer.test(args, pl_trainer, is_hptuning=is_hptuning)
+        except Exception as e:
+            if pl_trainer:
+                pl_logger = pl_trainer.logger
+                pl_logger.experiment.set_terminated(pl_logger.run_id, status="FAILED")
+            raise e
