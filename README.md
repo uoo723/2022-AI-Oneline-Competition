@@ -8,8 +8,16 @@
     - [과제 설명](#과제-설명)
     - [평가지표](#평가지표)
     - [모델 사전 조사](#모델-사전-조사)
+  - [사용 방법론](#사용-방법론)
+  - [Instruction](#instruction)
+    - [디렉토리 구조](#디렉토리-구조)
+      - [Python 명령 스크립트](#python-명령-스크립트)
+      - [Shell 스크립트 (`./scripts`)](#shell-스크립트-scripts)
+    - [Reproduction](#reproduction)
+      - [데이터 전처리](#데이터-전처리)
   - [Experiments](#experiments)
   - [Log](#log)
+  - [References](#references)
 ---
 
 # 2022-AI-Oneline-Competition
@@ -69,6 +77,119 @@ $rank_i$: $i$-th query에 대해 relevant item이 처음으로 등장한 rank.
 
 ---
 
+## 사용 방법론
+
+"...the **go to** statement should be abolished..." [[1]](#ref1).
+
+---
+
+## Instruction
+
+### 디렉토리 구조
+
+```bash
+.
+├── main.py
+├── train.py
+├── preprocess.py
+├── hp_tuning.py
+├── README.md
+├── requirements.txt
+├── Dockerfile
+├── scripts
+│   ├── run_preprocess.sh
+│   ├── run_train.sh
+│   ├── run_colbert.sh
+│   ├── run_monobert.sh
+│   ├── run_prediction.sh
+│   ├── run_colbert_prediction.sh
+│   ├── run_monobert_prediction.sh
+│   └── run_sentencebert.sh  # 사용하지 않음.
+└── src
+    ├── __init__.py
+    ├── base_trainer.py
+    ├── callbacks.py
+    ├── data.py
+    ├── optimizers.py
+    ├── utils.py
+    ├── metrics.py
+    ├── modules.py
+    ├── colbert
+    │   ├── __init__.py
+    │   ├── datasets.py
+    │   ├── loss.py
+    │   ├── models.py
+    │   └── trainer.py
+    ├── monobert
+    │   ├── __init__.py
+    │   ├── datasets.py
+    │   ├── models.py
+    │   └── trainer.py
+    ├── duobert          # 사용하지 않음.
+    │   ├── __init__.py
+    │   └── trainer.py
+    └── sentencebert     # 사용하지 않음.
+        ├── __init__.py
+        ├── datasets.py
+        ├── loss.py
+        ├── models.py
+        └── trainer.py
+```
+
+#### Python 명령 스크립트
+
+- `main.py`: python 메인 명령 스크립트. `train.py`, `preprocess.py`, `hp_tuning.py` 명령을 모아 놓은 스크립트 파일.
+- `train.py`: 모델 훈련 관련 명령 스크립트. `python main.py [subcommand] [args]` 형식으로 사용.
+- `hp_tuning.py`: 모델 하이퍼 파라미터 튜닝 관련 명령 스크립트. `python main.py [subcommand] [args]` 형식으로 사용.
+- `preprocess.py`: 전처리 관련 명령 스크립트. `python main.py [subcommand] [args]` 형식으로 사용.
+
+```bash
+$ python main.py --help
+Usage: main.py [OPTIONS] COMMAND [ARGS]...
+
+Options:
+  --save-args PATH  Save command args
+  --help            Show this message and exit.
+
+Commands:
+  hp-tuning            Hyper-parameter tuning       # hp_tuning.py에 정의
+  make-index-contents  Make index contents          # preprocess.py에 정의
+  make-shard           Make topk candidates shard   # preprocess.py에 정의
+  train-colbert        Train ColBERT                # train.py에 정의
+  train-duobert        Train duoBERT                # train.py에 정의
+  train-monobert       Train monoBERT               # train.py에 정의
+  train-sentencebert   Train sentenceBERT           # train.py에 정의
+
+```
+
+#### Shell 스크립트 (`./scripts`)
+
+python 명령 스크립트 argument 관리 및 명령 파이프라인 자동화를 위해 정의.
+
+- `run_preprocess.sh`: 데이터 전처리 파이프라인.  
+  BM25 index 생성 (train, test) -> train/test query에 대해 문서 후보 1,000개 추출 후 10,000 query씩 sharding. (train: 24개, test: 1개)
+
+- `run_train.sh`: Neural model 훈련 파이프라인.
+  - `run_colbert.sh` -> `run_monobert.sh`
+  - `run_colbert.sh`: ***ColBERT*** 모델 하이퍼 파라미터 설정 및 훈련 스크립트.
+  - `run_monobert.sh`: ***monoBERT*** 모델 하이퍼 파라미터 설정 및 훈련 스크립트.
+
+- `run_prediction.sh`: Test set에 대한 추론 명령 파이프라인.
+  - `run_colbert_prediction.sh` -> `run_monobert_prediction.sh`
+  - `run_colbert_prediction.sh`: ***ColBERT*** 모델 추론.
+  - `run_monobert_prediction.sh`: ***monoBERT*** 모델 추론.
+
+### Reproduction
+
+※ 모든 명령 실행은 프로젝트 디레토리에서 실행 및 실행 시간 측정을 위해 `time` command 사용.
+
+#### 데이터 전처리
+
+```bash
+time ./scripts/run_preprocess.sh
+```
+---
+
 ## Experiments
 
 | Model                                                                   | MRR@10 (Public Score) | Submission # |
@@ -118,3 +239,23 @@ $rank_i$: $i$-th query에 대해 relevant item이 처음으로 등장한 rank.
 
 - BM25 baseline 실험
 - Public score: 0.94657 (#1)
+
+---
+
+## References
+
+<a id="ref1">[1]</a> R. Nogueira et al. [Multi-Stage Document Ranking with BERT](https://arxiv.org/abs/1910.14424). arXiv preprint 2019.
+
+<a id="ref2">[2]</a> O. Khattab et al. [ColBERT: Efficient and Effective Passage Search via Contextualized Late Interaction over BERT](https://arxiv.org/abs/2004.12832). SIGIR 2020.
+
+<a id="ref3">[3]</a> Y. Sun et al. [Circle Loss: A Unified Perspective of Pair Similarity Optimization](https://arxiv.org/abs/2002.10857). arXiv preprint 2020.
+
+<a id="ref4">[4]</a> I. Loshchilov et al. [Decoupled Weight Decay Regularization](https://arxiv.org/abs/1711.05101). ICLR 2019.
+
+<a id="ref5">[5]</a> T. Jiang et al. [LightXML: Transformer with Dynamic Negative Sampling for High-Performance Extreme Multi-label Text Classification](https://arxiv.org/abs/2101.03305). AAAI 2021.
+
+<a id="ref6">[6]</a> J. Guo et al. [A Deep Look into Neural Ranking Models for Information Retrieval](https://arxiv.org/abs/1903.06902). Information Processing & Management 57.6 (2020): 102067.
+
+<a id="ref7">[7]</a> P. Izmailov et al. [Averaging Weights Leads to Wider Optima and Better Generalization](https://arxiv.org/abs/1803.05407). UAI 2018.
+
+<a id="ref8">[8]</a> B. Athiwaratkun et al. [There Are Many Consistent Explanations of Unlabeled Data: Why You Should Average](https://arxiv.org/abs/1806.05594). ICLR 2019.
