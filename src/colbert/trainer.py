@@ -578,6 +578,7 @@ def predict(args: AttrDict) -> Any:
     answers = []
 
     model.eval()
+    late_interaction.eval()
     q_ids = []
     candidate_doc_ids = []
     for q_id, doc_ids in tqdm(test_candidates.items(), desc="inference..."):
