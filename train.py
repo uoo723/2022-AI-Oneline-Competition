@@ -110,6 +110,7 @@ _submission_options = [
     optgroup.group("Submission Options"),
     optgroup.option("--submission-output", type=click.Path(), default="./submissions/submission.csv", help="Output path for submssion"),
     optgroup.option("--topk-filepath", type=click.Path(exists=True), help="Topk candidate list files"),
+    optgroup.option("--silent", is_flag=True, default=False, help="If submission file exists, exit without prompt"),
 ]
 
 _monobert_options = [

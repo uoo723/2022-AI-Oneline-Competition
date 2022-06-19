@@ -473,6 +473,9 @@ def predict(args: AttrDict) -> Any:
     logger.info(f"submission_output: {args.submission_output}")
 
     if os.path.exists(args.submission_output):
+        if args.silent:
+            return
+
         click.confirm(
             f"{os.path.basename(args.submission_output)} is already existed."
             " Overwrite it?",
