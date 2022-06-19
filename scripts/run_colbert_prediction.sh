@@ -15,6 +15,7 @@ args=(
     --run-script $0
     --mode "predict"
     --submission-output "./submissions/top${TOPK}_colbert_$RUN_ID.csv"
+    --silent
     --run-id "$RUN_ID"
     --topk-candidates $TOPK
     --final-topk $TOPK
