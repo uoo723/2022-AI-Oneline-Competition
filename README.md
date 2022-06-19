@@ -12,14 +12,21 @@
     - [Overall](#overall)
     - [monoBERT (3rd-stage retrieval)](#monobert-3rd-stage-retrieval)
     - [ColBERT (2nd-stage retrieval)](#colbert-2nd-stage-retrieval)
+    - [BM25 (1st-stage retrieval)](#bm25-1st-stage-retrieval)
+    - [Neural Model Fine-tuning](#neural-model-fine-tuning)
   - [Instruction](#instruction)
     - [디렉토리 구조](#디렉토리-구조)
       - [Python 명령 스크립트](#python-명령-스크립트)
       - [Shell 스크립트 (`./scripts`)](#shell-스크립트-scripts)
+      - [Log](#log)
+      - [Submssion](#submssion)
     - [Reproduction](#reproduction)
+      - [실험 환경](#실험-환경)
       - [데이터 전처리](#데이터-전처리)
+      - [Neural 모델 훈련](#neural-모델-훈련)
+      - [Test 추론](#test-추론)
   - [Experiments](#experiments)
-  - [Log](#log)
+  - [History](#history)
   - [References](#references)
 ---
 
@@ -96,17 +103,18 @@ $rank_i$: $i$-th query에 대해 relevant item이 처음으로 등장한 rank.
 
 - Neural 모델을 사용하는 방식은 크게 2가지 분류로 나뉨.
 - `Interaction-based` 같은 경우 query term, document term 간의 matching signal를 만들어 matching pattern을 학습하는 방식.
-  - 즉, query, document의 score function을 학습한다고 생각하면 됨. $s_{ij} = f_{\theta}(q_i,d_j)$
+  - 즉, query, document의 score function을 학습한다고 생각하면 됨.
+  - $s_{ij} = f_{\theta}(q_i,d_j)$
 - 반면에 `Representation-based` 같은 경우 query, document 각각 representation를 학습하여 비교적 가벼운 similarity function (e.g. cosine) 으로 score를 계산하게 됨.
   - $s_{ij} = sim(g_{\theta_1}(q_i),h_{\theta_2}(d_j))$
 - `Interaction-based` vs. `Representation-based` [[6]](#ref6)
-  - `Interaction-based`은 query-document term의 matching pattern를 학습하기 때문에 성능은 우수하나 score를 계산하기 위해 항상 query-document pair로 입력해야 하기 때문에 inference가 느림.
+  - `Interaction-based`은 query-document term의 matching pattern를 학습하기 때문에 성능은 우수하나 score를 계산하기 위해 항상 query-document pair로 입력해야 해서 inference가 느림.
   - `Representation-based`은 document representation을 caching할 수 있기 때문에 inference는 `Interaction-based`보다는 빠름. 하지만 성능은 비교적 떨어짐.
-- `Multi-stage Retrieval`
+- Multi-stage Retrieval
   - 2가지 장점을 적절히 사용하기 위해 두 방식 모두 사용하기로 함.
   - BM25 -> xxx candidates -> `Representation-based` -> xx candidates -> `Interaction-based` -> 10 candidates
   - 비교적 inference 빠른 `Representation-based` 모델에서 100 자릿수 문서 re-ranking (e.g. 500 candidates).
-  - 성능을 극대화하기 위해 추려진 문서 `Interaction-based` 모델에서 10 자릿수 문서 re-ranking (e.g. 50 candidates).
+  - 성능을 극대화하기 위해 추려진 문서를 `Interaction-based` 모델에서 10 자릿수 문서 re-ranking (e.g. 50 candidates).
   - 최종 상위 10개 문서 추출 (과제 요구사항).
 
 ### monoBERT (3rd-stage retrieval)
@@ -119,6 +127,34 @@ $rank_i$: $i$-th query에 대해 relevant item이 처음으로 등장한 rank.
 ### ColBERT (2nd-stage retrieval)
 
 ![그림3](https://user-images.githubusercontent.com/7765506/174447759-c5fbcd05-0208-4431-80d9-6a76798c1da9.jpg)
+
+- `Representation-based` 모델 [[2]](#ref2).
+- 마지막 output layer에서 `Interaction-based`를 흉내내기 위해 late interaction을 수행하는 연산 구간이 있음.
+  - 단순히 pooling layer로 representation을 만드는 SentenceBERT [[12]](#ref12)보다 더 우수한 성능을 보였음.
+  - $s_{ij}=\Sigma_{\mathbf{e_{q_i}}\in\mathbf{E_{q_i}}}\max_{\mathbf{e_{d_j}}\in\mathbf{E_{d_j}}}{\mathbf{e_{q_i}}\cdot\mathbf{e_{d_j}}^\top}$
+  - Sequence embedding을 normalize하여 사용하면 cosine similarity.
+- Loss는 triplet loss 중 하나인 Circle loss [[3]](#ref3) 사용.
+  - 각 single similarity score에 대해 서로 다른 weight 부여하여 최적화함.
+  - e.g. positive sample에 대해 similarity score가 이미 높다면 weight을 줄이고, 낮으면 weight을 높여서 빠르게 수렴할 수 있도록 함.
+
+### BM25 (1st-stage retrieval)
+
+- 1st-stage retrieval에서는 IR 연구에 자주 사용되는 toolkit인 Anserini [[13]](#ref13)의 python wrapper인 Pyserini [[14]](#ref14)를 사용.
+- Anserini는 자바로 구현된 검색 라이브러리 [Apache Lucene](https://ko.wikipedia.org/wiki/%EC%95%84%ED%8C%8C%EC%B9%98_%EB%A3%A8%EC%94%AC) 위에서 만들어진 toolkit이고, 문서 index 생성 및 검색 기능을 제공함.
+- Pyserini를 이용하여 train/test 문서의 index를 생성하고, 각 query별 1,000개의 문서 후보를 추출하였음.
+
+
+### Neural Model Fine-tuning
+
+- Optimizer는 AdamW [[4]](#ref4) 사용.
+- Pretrained weight은 ELECTRA [[15]](#ref15) 기반인 [KoELECTRA](https://github.com/monologg/KoELECTRA) 사용.
+- Stochastic Weight Averaging [[7](#ref7), [8](#ref8)] 적용.
+  - 특정 주기의 validation step에서의 모델들의 weight을 평균내어 해당 weight을 사용하는 기법.
+  - 즉 k번의 validation step이 있다면 k개 모델을 ensemble하는 효과.
+  - 모델의 일반화 성능을 높여줌.
+- Multi Layer Text Representation [[5]](#ref5)
+  - BERT의 각 encoder output을 활용하여 text representation을 만드는 기법.
+  - 마지막 output layer와 가까운 5개의 encoder layer의 output을 concat하거나 Convolution을 사용하여 조금 더 fine-grained text representation을 만듦.
 
 ---
 
@@ -144,35 +180,51 @@ $rank_i$: $i$-th query에 대해 relevant item이 처음으로 등장한 rank.
 │   ├── run_colbert_prediction.sh
 │   ├── run_monobert_prediction.sh
 │   └── run_sentencebert.sh  # 사용하지 않음.
-└── src
-    ├── __init__.py
-    ├── base_trainer.py
-    ├── callbacks.py
-    ├── data.py
-    ├── optimizers.py
-    ├── utils.py
-    ├── metrics.py
-    ├── modules.py
-    ├── colbert
-    │   ├── __init__.py
-    │   ├── datasets.py
-    │   ├── loss.py
-    │   ├── models.py
-    │   └── trainer.py
-    ├── monobert
-    │   ├── __init__.py
-    │   ├── datasets.py
-    │   ├── models.py
-    │   └── trainer.py
-    ├── duobert          # 사용하지 않음.
-    │   ├── __init__.py
-    │   └── trainer.py
-    └── sentencebert     # 사용하지 않음.
-        ├── __init__.py
-        ├── datasets.py
-        ├── loss.py
-        ├── models.py
-        └── trainer.py
+├── src
+│    ├── __init__.py
+│    ├── base_trainer.py
+│    ├── callbacks.py
+│    ├── data.py
+│    ├── optimizers.py
+│    ├── utils.py
+│    ├── metrics.py
+│    ├── modules.py
+│    ├── colbert
+│    │   ├── __init__.py
+│    │   ├── datasets.py
+│    │   ├── loss.py
+│    │   ├── models.py
+│    │   └── trainer.py
+│    ├── monobert
+│    │   ├── __init__.py
+│    │   ├── datasets.py
+│    │   ├── models.py
+│    │   └── trainer.py
+│    ├── duobert          # 사용하지 않음.
+│    │   ├── __init__.py
+│    │   └── trainer.py
+│    └── sentencebert     # 사용하지 않음.
+│        ├── __init__.py
+│        ├── datasets.py
+│        ├── loss.py
+│        ├── models.py
+│        └── trainer.py
+├── data
+│    ├── train.json
+│    ├── test_data.json
+│    └── test_questions.csv
+├── logs
+│    └── 0
+│        ├── meta.yaml
+│        ├── [run_id]
+│        │      ├── ...
+│        │      └── ...
+│        └── ...
+└── submissions
+     ├── submission1.csv
+     ├── [run_prediction_script].sh
+     ├── ...
+     └── ...
 ```
 
 #### Python 명령 스크립트
@@ -198,7 +250,6 @@ Commands:
   train-duobert        Train duoBERT                # train.py에 정의
   train-monobert       Train monoBERT               # train.py에 정의
   train-sentencebert   Train sentenceBERT           # train.py에 정의
-
 ```
 
 #### Shell 스크립트 (`./scripts`)
@@ -218,15 +269,52 @@ python 명령 스크립트 argument 관리 및 명령 파이프라인 자동화�
   - `run_colbert_prediction.sh`: ***ColBERT*** 모델 추론.
   - `run_monobert_prediction.sh`: ***monoBERT*** 모델 추론.
 
+#### Log
+
+- 모델 weight, hyper parameter, training loss 등 log들은 하위 디렉토리 `logs`에 기록.
+- log 기록을 웹으로 확인하기 위해 [MLflow](https://mlflow.org/) 서버 실행.
+
+```bash
+PORT=5050 ./scripts/run_mlflow.sh
+```
+
+- `PORT`는 임의로 지정 가능. 서버 실행 후, 브라우저로 해당 서버 주소로 접속하여 log 기록 확인.
+
+#### Submssion
+
+- submssion 파일들은 하위 디렉토리 `submissions`에 생성.
+
 ### Reproduction
 
-※ 모든 명령 실행은 프로젝트 디렉토리에서 실행 및 실행 시간 측정을 위해 `time` command 사용.
+- 모든 명령 실행은 프로젝트 디렉토리에서 실행 및 실행 시간 측정을 위해 `time` command 사용.
+- train/test 데이터는 프로젝트 하위 디렉토리 `data`에 있어야 함.
+- Neural 모델 weight 및 training log는 하위 디렉토리 `logs`에 기록됨.
+
+#### 실험 환경
+
+- Intel(R) Xeon(R) CPU E5-2695 v4 @ 2.10GHz x 18 cores (36 threads)
+- 128GB RAM
+- Nvidia RTX 2080 Ti x 1
+- Ubuntu 18.04
 
 #### 데이터 전처리
 
 ```bash
-time ./scripts/run_preprocess.sh
+time ./scripts/run_preprocess.sh  # 약 2h 소요
 ```
+
+#### Neural 모델 훈련
+
+```bash
+time ./scripts/run_train.sh  # ColBERT: ~10h, monoBERT: ~8h
+```
+
+#### Test 추론
+
+```bash
+time ./scripts/run_prediction.sh  # ColBERT: ~1h, monoBERT: ~2h
+```
+
 ---
 
 ## Experiments
@@ -243,7 +331,7 @@ time ./scripts/run_preprocess.sh
 | BM25 (500 candidates) + ColBERT (base, 50 candidates) + monoBERT (#6)   | 0.99047               | #12          |
 | BM25 (500 candidates) + ColBERT (#12) + monoBERT (#6 + all data)        | 0.99143               | #16          |
 
-## Log
+## History
 
 [2022.06.13]
 
@@ -304,4 +392,12 @@ time ./scripts/run_preprocess.sh
 
 <a id="ref10">[10]</a> L. Zhao et al. [Term necessity prediction](https://dl.acm.org/doi/10.1145/1871437.1871474). CIKM 2010.
 
-<a id="ref11">[11]</a> J. Devlin. [BERT: Pre-training of Deep Bidirectional Transformers for Language Understanding](https://arxiv.org/abs/1810.04805). arXiv preprint 2019.
+<a id="ref11">[11]</a> J. Devlin et al. [BERT: Pre-training of Deep Bidirectional Transformers for Language Understanding](https://arxiv.org/abs/1810.04805). arXiv preprint 2019.
+
+<a id="ref12">[12]</a> N. Reimers et al. [Sentence-BERT: Sentence Embeddings using Siamese BERT-Networks](https://arxiv.org/abs/1908.10084). ENMLP 2019.
+
+<a id="ref13">[13]</a> P. Yang et al. [Anserini: Enabling the Use of Lucene for Information Retrieval Research](https://dl.acm.org/doi/10.1145/3077136.3080721). [Github link](https://github.com/castorini/anserini). SIGIR 2017.
+
+<a id="ref14">[14]</a> J. Lin et al. [Pyserini: A Python Toolkit for Reproducible Information Retrieval Research with Sparse and Dense Representations](https://dl.acm.org/doi/10.1145/3404835.3463238). [Github link](https://github.com/castorini/pyserini/). SIGIR 2021.
+
+<a id="ref15">[15]</a> K. Clark et al. [ELECTRA: Pre-training Text Encoders as Discriminators Rather Than Generators](https://arxiv.org/abs/2003.10555). ICLR 2020.
