@@ -25,7 +25,7 @@
       - [데이터 전처리](#데이터-전처리)
       - [Neural 모델 훈련](#neural-모델-훈련)
       - [Test 추론](#test-추론)
-      - [기존 학습 모델로 추론](#기존-학습-모델로-추론)
+      - [Best 모델로 추론](#best-모델로-추론)
   - [Experiments](#experiments)
   - [History](#history)
   - [References](#references)
@@ -144,11 +144,10 @@ $rank_i$: $i$-th query에 대해 relevant item이 처음으로 등장한 rank.
 - Anserini는 자바로 구현된 검색 라이브러리 [Apache Lucene](https://ko.wikipedia.org/wiki/%EC%95%84%ED%8C%8C%EC%B9%98_%EB%A3%A8%EC%94%AC) 위에서 만들어진 toolkit이고, 문서 index 생성 및 검색 기능을 제공함.
 - Pyserini를 이용하여 train/test 문서의 index를 생성하고, 각 query별 1,000개의 문서 후보를 추출하였음.
 
-
 ### Neural Model Fine-tuning
 
 - Optimizer는 AdamW [[4]](#ref4) 사용.
-- Pretrained weight은 ELECTRA [[15]](#ref15) 기반인 [KoELECTRA](https://github.com/monologg/KoELECTRA) 사용.
+- Pretrained weight은 ELECTRA [[15]](#ref15) 기반인 [KoELECTRA](https://github.com/monologg/KoELECTRA)와 BART [[16]](#ref16) 기반인 [KoBART](https://huggingface.co/hyunwoongko/kobart) 사용.
 - Stochastic Weight Averaging [[7](#ref7), [8](#ref8)] 적용.
   - 특정 주기의 validation step에서의 모델들의 weight을 평균내어 해당 weight을 사용하는 기법.
   - 즉 k번의 validation step이 있다면 k개 모델을 ensemble하는 효과.
@@ -317,10 +316,10 @@ time ./scripts/run_train.sh  # ColBERT: ~10h, monoBERT: ~8h
 time ./scripts/run_prediction.sh  # ColBERT: ~1h, monoBERT: ~2h
 ```
 
-#### 기존 학습 모델로 추론
+#### Best 모델로 추론
 
 ```bash
-time COLBERT_RUN_ID=b6ec5451b76743229b9a40a41f53230a MONOBERT_RUN_ID=0c66f56bdc504e33baa7024928b8252d SUBMISSION_FILE=best.csv ./scripts/run_prediction.sh
+time COLBERT_RUN_ID=b6ec5451b76743229b9a40a41f53230a MONOBERT_RUN_ID=ad1b84be7ef64e139b588145fed52500 SUBMISSION_FILE=best.csv ./scripts/run_prediction.sh
 ```
 
 ---
@@ -409,3 +408,5 @@ time COLBERT_RUN_ID=b6ec5451b76743229b9a40a41f53230a MONOBERT_RUN_ID=0c66f56bdc5
 <a id="ref14">[14]</a> J. Lin et al. [Pyserini: A Python Toolkit for Reproducible Information Retrieval Research with Sparse and Dense Representations](https://dl.acm.org/doi/10.1145/3404835.3463238). [Github link](https://github.com/castorini/pyserini/). SIGIR 2021.
 
 <a id="ref15">[15]</a> K. Clark et al. [ELECTRA: Pre-training Text Encoders as Discriminators Rather Than Generators](https://arxiv.org/abs/2003.10555). ICLR 2020.
+
+<a id="ref16">[16]</a> M. Lewis et al. [BART: Denoising Sequence-to-Sequence Pre-training for Natural Language Generation, Translation, and Comprehension](https://arxiv.org/abs/1910.13461). ACL 2020.
