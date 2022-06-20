@@ -111,6 +111,7 @@ _submission_options = [
     optgroup.option("--submission-output", type=click.Path(), default="./submissions/submission.csv", help="Output path for submssion"),
     optgroup.option("--topk-filepath", type=click.Path(exists=True), help="Topk candidate list files"),
     optgroup.option("--silent", is_flag=True, default=False, help="If submission file exists, exit without prompt"),
+    optgroup.option("--load-last", is_flag=True, default=False, help="Load last model instead of best model"),
 ]
 
 _monobert_options = [

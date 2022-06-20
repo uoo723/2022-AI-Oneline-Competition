@@ -529,7 +529,7 @@ def predict(args: AttrDict) -> Any:
     else:
         late_interaction = LateInteraction()
 
-    ckpt_path = get_ckpt_path(args.log_dir, args.run_id, load_best=True)
+    ckpt_path = get_ckpt_path(args.log_dir, args.run_id, load_best=not args.load_last)
     ckpt = torch.load(ckpt_path, map_location="cpu")
 
     swa_callback_key = None
