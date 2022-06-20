@@ -11,26 +11,38 @@ args=(
     --model-name $MODEL
     --dataset-name $DATASET
     --run-script $0
-    --pretrained-model-name "hyunwoongko/kobart"
+    --pretrained-model-name "monologg/koelectra-small-v3-discriminator"
+    # --pretrained-model-name "monologg/koelectra-base-v3-discriminator"
+    # --pretrained-model-name "hyunwoongko/kobart"
+    # --pretrained-model-name "gogamza/kobart-base-v2"
     --skip-test
     --log-run-id
     --n-feature-layers 5
     --topk-candidates 100
+    # --use-transformer-late-interaction
+    # --use-layernorm
+    # --n-heads 1
+    # --dim-feedforward 512
+    # --loss-type "bce"
     --optim-name "adamw"
     --lr 2.5e-5
+    # --scheduler-type "linear"
+    # --scheduler-warmup 0.05
     --num-epochs 5
-    --train-batch-size 4
+    --train-batch-size 16
     --test-batch-size 32
-    --accumulation-step 8
+    --accumulation-step 2
     --early-criterion 'mrr'
     --seed $1
     --swa-warmup 1
-    --eval-step 5000
+    --eval-step 2000
     --early 5
     --mp-enabled
     --gradient-max-norm 5.0
     --num-workers 8
     --experiment-name "ColBERT"
+    # --run-id "efe8a17d663645389ff4b92f9f82da44"
+    # --reset-early
     --query-max-length 80
     --passage-max-length 512
     --valid-size 500

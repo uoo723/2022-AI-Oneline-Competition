@@ -9,16 +9,18 @@ MODEL=monoBERT
 
 RUN_ID=${RUN_ID:-e5f00870e79d42b392778ba40a171c01}
 TOPK_FILE=${TOPK_FILE:-top500_colbert_b6ec5451b76743229b9a40a41f53230a.csv}
+TOPK=${TOPK:-20}
+SUBMISSION_FILE=${SUBMISSION_FILE:-submission24.csv}
 
 args=(
     --model-name $MODEL
     --dataset-name $DATASET
     --run-script $0
     --mode "predict"
-    --submission-output "./submissions/submission23.csv"
+    --submission-output "./submissions/$SUBMISSION_FILE"
     --run-id "$RUN_ID"
-    --topk-candidates 50
-    --test-batch-size 50
+    --topk-candidates $TOPK
+    --test-batch-size $TOPK
     --topk-filepath "./submissions/$TOPK_FILE"
 )
 

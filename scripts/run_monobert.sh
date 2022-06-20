@@ -14,9 +14,15 @@ args=(
     # --pretrained-model-name "monologg/koelectra-small-v3-discriminator"
     --pretrained-model-name "monologg/koelectra-base-v3-discriminator"
     # --pretrained-model-name "gogamza/kobart-base-v2"
+    --skip-test
+    --log-run-id
+    --n-feature-layers 5
+    # --use-conv
     --optim-name "adamw"
     --lr 2.5e-5
-    --num-epochs 10
+    --num-epochs 5
+    # --scheduler-type "linear"
+    # --scheduler-warmup 0.05
     --train-batch-size 4
     --test-batch-size 1
     --accumulation-step 8
@@ -24,8 +30,8 @@ args=(
     --seed $1
     --swa-warmup 1
     # --eval-step 300
-    --eval-step 1000
-    --early 5
+    --eval-step 5000
+    --early 10
     --mp-enabled
     --gradient-max-norm 5.0
     --num-workers 8
@@ -42,6 +48,24 @@ args=(
     --shard-idx 3
     --shard-idx 4
     --shard-idx 5
+    --shard-idx 6
+    --shard-idx 7
+    --shard-idx 8
+    --shard-idx 9
+    --shard-idx 10
+    --shard-idx 11
+    --shard-idx 12
+    --shard-idx 13
+    --shard-idx 14
+    --shard-idx 15
+    --shard-idx 16
+    --shard-idx 17
+    --shard-idx 18
+    --shard-idx 19
+    --shard-idx 20
+    --shard-idx 21
+    --shard-idx 22
+    --shard-idx 23
 )
 
 python main.py train-monobert "${args[@]}"
