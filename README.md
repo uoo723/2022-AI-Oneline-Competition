@@ -25,6 +25,7 @@
       - [데이터 전처리](#데이터-전처리)
       - [Neural 모델 훈련](#neural-모델-훈련)
       - [Test 추론](#test-추론)
+      - [기존 학습 모델로 추론](#기존-학습-모델로-추론)
   - [Experiments](#experiments)
   - [History](#history)
   - [References](#references)
@@ -314,6 +315,12 @@ time ./scripts/run_train.sh  # ColBERT: ~10h, monoBERT: ~8h
 
 ```bash
 time ./scripts/run_prediction.sh  # ColBERT: ~1h, monoBERT: ~2h
+```
+
+#### 기존 학습 모델로 추론
+
+```bash
+time COLBERT_RUN_ID=b6ec5451b76743229b9a40a41f53230a MONOBERT_RUN_ID=0c66f56bdc504e33baa7024928b8252d SUBMISSION_FILE=best.csv ./scripts/run_prediction.sh
 ```
 
 ---
