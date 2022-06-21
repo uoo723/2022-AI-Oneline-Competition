@@ -27,7 +27,6 @@
       - [Test 추론](#test-추론)
       - [Best 모델로 추론](#best-모델로-추론)
   - [Experiments](#experiments)
-  - [History](#history)
   - [References](#references)
 ---
 
@@ -147,7 +146,7 @@ $rank_i$: $i$-th query에 대해 relevant item이 처음으로 등장한 rank.
 ### Neural Model Fine-tuning
 
 - Optimizer는 AdamW [[4]](#ref4) 사용.
-- Pretrained weight은 ELECTRA [[15]](#ref15) 기반인 [KoELECTRA](https://github.com/monologg/KoELECTRA)와 BART [[16]](#ref16) 기반인 [KoBART](https://huggingface.co/hyunwoongko/kobart) 사용.
+- Pretrained weight은 ELECTRA [[15]](#ref15) 기반인 [KoELECTRA](https://github.com/monologg/KoELECTRA) 사용.
 - Stochastic Weight Averaging [[7](#ref7), [8](#ref8)] 적용.
   - 특정 주기의 validation step에서의 모델들의 weight을 평균내어 해당 weight을 사용하는 기법.
   - 즉 k번의 validation step이 있다면 k개 모델을 ensemble하는 효과.
@@ -214,7 +213,7 @@ $rank_i$: $i$-th query에 대해 relevant item이 처음으로 등장한 rank.
 │    ├── train.json
 │    ├── test_data.json
 │    └── test_questions.csv
-├── logs
+├── logs                      # mlflow log 디렉토리
 │    └── 0
 │        ├── meta.yaml
 │        ├── [run_id]
@@ -222,6 +221,7 @@ $rank_i$: $i$-th query에 대해 relevant item이 처음으로 등장한 rank.
 │        │      └── ...
 │        └── ...
 └── submissions
+     ├── best_submission.csv  # best submssion 파일
      ├── submission1.csv
      ├── [run_prediction_script].sh
      ├── ...
@@ -284,6 +284,7 @@ PORT=5050 ./scripts/run_mlflow.sh
 #### Submssion
 
 - submssion 파일들은 하위 디렉토리 `submissions`에 생성.
+- `best_submssion.csv`: Final 리더보드 제출 파일.
 
 ### Reproduction
 
@@ -295,32 +296,35 @@ PORT=5050 ./scripts/run_mlflow.sh
 
 - Intel(R) Xeon(R) CPU E5-2695 v4 @ 2.10GHz x 18 cores (36 threads)
 - 128GB RAM
-- Nvidia RTX 2080 Ti x 1
+- Nvidia RTX 2080 Ti x 1 (ColBERT)
+- Nvidia RTX 3090 Ti x 1 (monoBERT)
 - Ubuntu 18.04
 
 #### 데이터 전처리
 
 ```bash
-time ./scripts/run_preprocess.sh  # 약 2h 소요
+time SOURCE_DATA_DIR=/DATA ./scripts/run_preprocess.sh  # 1.5h
 ```
 
 #### Neural 모델 훈련
 
 ```bash
-time ./scripts/run_train.sh  # ColBERT: ~10h, monoBERT: ~8h
+time ./scripts/run_train.sh  # ColBERT: ~10h, monoBERT: ~16h
 ```
 
 #### Test 추론
 
 ```bash
-time ./scripts/run_prediction.sh  # ColBERT: ~1h, monoBERT: ~2h
+time ./scripts/run_prediction.sh  # ColBERT: ~0.5h, monoBERT: ~2.5h
 ```
 
 #### Best 모델로 추론
 
 ```bash
-time COLBERT_RUN_ID=b6ec5451b76743229b9a40a41f53230a MONOBERT_RUN_ID=ad1b84be7ef64e139b588145fed52500 SUBMISSION_FILE=best.csv ./scripts/run_prediction.sh
+time COLBERT_RUN_ID=9d84388f242e44c289c7f459aa95bdca MONOBERT_RUN_ID=4a3cbf97ae1d4f14b0c7e4099a179c76 SUBMISSION_FILE=best.csv ./scripts/run_prediction.sh
 ```
+
+`./submission/best.csv` 생성됨.
 
 ---
 
@@ -338,41 +342,6 @@ time COLBERT_RUN_ID=b6ec5451b76743229b9a40a41f53230a MONOBERT_RUN_ID=ad1b84be7ef
 | BM25 (500 candidates) + ColBERT (base, 50 candidates) + monoBERT (#6)   | 0.99047               | #12          |
 | BM25 (500 candidates) + ColBERT (#12) + monoBERT (#6 + all data)        | 0.99143               | #16          |
 
-## History
-
-[2022.06.13]
-
-- ColBERT 모델 구현
-- ColBERT training 구현
-
-[2022.06.12]
-
-- SentenceBERT 모델 구현
-- SentenceBERT training 구현
-
-[2022.06.10]
-
-- BM25 (50 candidates) + monoBERT (base) 실험
-- Public score: 0.98489 (#4)
-- +SWA -> Public score: 0.98631 (#5)
-- +encoder ensemble -> Public score: 0.98642 (#6)
-
-[2022.06.09]
-
-- BM25 (50 candidates) + monoBERT (small) 실험
-- Public score: 0.98371 (#2)
-- BM25 (100 candidates) + monoBERT (small) 실험
-- Public score: 0.98415 (#3)
-
-[2022.06.08]
-
-- monoBERT 모델 구현
-- monoBERT 훈련 loop 구현
-
-[2022.06.07]
-
-- BM25 baseline 실험
-- Public score: 0.94657 (#1)
 
 ---
 
