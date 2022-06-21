@@ -19,8 +19,6 @@ class MonoBERT(nn.Module):
         linear_size: List[int] = [256],
         dropout: float = 0.2,
         use_layernorm: bool = False,
-        use_conv: bool = False,
-        kernel_size: int = 2,
         n_feature_layers: int = 1,
         proj_dropout: float = 0.5,
     ) -> None:
@@ -41,48 +39,31 @@ class MonoBERT(nn.Module):
 
         self.n_feature_layers = n_feature_layers
         if n_feature_layers > 1:
+            self.proj = nn.Linear(
+                self.n_feature_layers * model_config.hidden_size,
+                model_config.hidden_size,
+            )
             self.proj_dropout = nn.Dropout(proj_dropout)
-            if use_conv:
-                self.conv1d = nn.Conv1d(
-                    n_feature_layers, 1, kernel_size, padding="same"
-                )
-                self.register_parameter("proj", None)
-            else:
-                self.proj = nn.Linear(
-                    self.n_feature_layers * model_config.hidden_size,
-                    model_config.hidden_size,
-                )
-                self.register_parameter("conv1d", None)
+            self.conv1d = nn.Conv1d(5, 1, 2, padding='same')
         else:
             self.register_parameter("proj", None)
             self.register_parameter("proj_dropout", None)
-            self.register_parameter("conv1d", None)
 
     def forward(self, inputs: Dict[str, torch.Tensor]) -> torch.Tensor:
         enc_outputs = self.bert(**filter_arguments(inputs, self.bert.forward))
-        batch_size = enc_outputs[0].shape[0]
 
+        enc_out_shape = enc_outputs[-1][-1].shape
         if self.proj is not None:
             outputs = torch.cat(
                 [
-                    enc_outputs[-1][-i][:, 0]
-                    for i in range(1, self.n_feature_layers + 1)
-                ],
-                dim=1,
-            )
-            outputs = self.proj_dropout(outputs)
-            outputs = self.proj(outputs)
-        elif self.conv1d is not None:
-            outputs = torch.cat(
-                [
-                    enc_outputs[-1][-i][:, 0].unsqueeze(1)
+                    enc_outputs[-1][-i][:, 0].view([-1, 1, enc_out_shape[-1]])
                     for i in range(1, self.n_feature_layers + 1)
                 ],
                 dim=1,
             )
             outputs = self.proj_dropout(outputs)
             outputs = self.conv1d(outputs)
-            outputs = outputs.reshape(batch_size, -1)
+            outputs = outputs.view([-1, 768])
         else:
             outputs = enc_outputs[0][:, 0]
 
