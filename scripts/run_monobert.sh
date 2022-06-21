@@ -1,12 +1,9 @@
 #!/usr/bin/env bash
-
 # export MLFLOW_TRACKING_URI=http://localhost:5000
 export PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION=python
 export MLFLOW_EXPERIMENT_NAME=monoBERT
-
 DATASET=dataset
 MODEL=monoBERT
-
 args=(
     --model-name $MODEL
     --dataset-name $DATASET
@@ -14,15 +11,10 @@ args=(
     # --pretrained-model-name "monologg/koelectra-small-v3-discriminator"
     --pretrained-model-name "monologg/koelectra-base-v3-discriminator"
     # --pretrained-model-name "gogamza/kobart-base-v2"
-    --skip-test
-    --log-run-id
     --n-feature-layers 5
-    # --use-conv
     --optim-name "adamw"
     --lr 2.5e-5
-    --num-epochs 5
-    # --scheduler-type "linear"
-    # --scheduler-warmup 0.05
+    --num-epochs 2
     --train-batch-size 4
     --test-batch-size 1
     --accumulation-step 8
@@ -31,16 +23,17 @@ args=(
     --swa-warmup 1
     # --eval-step 300
     --eval-step 5000
-    --early 10
+    --early 100000000000000
     --mp-enabled
     --gradient-max-norm 5.0
     --num-workers 8
     --experiment-name "monoBERT"
+    --use-conv
     # --run-id "efe8a17d663645389ff4b92f9f82da44"
     # --reset-early
     --max-length 512
     # --valid-size 300
-    --valid-size 1000
+    --valid-size 300
     --use-layernorm
     --shard-idx 0
     --shard-idx 1
@@ -67,5 +60,4 @@ args=(
     --shard-idx 22
     --shard-idx 23
 )
-
 python main.py train-monobert "${args[@]}"
