@@ -10,6 +10,11 @@ MONOBERT_RUN_ID=${MONOBERT_RUN_ID:-$(cat $TMP_DIR/monoBERT_run_id)}
 TOPK=${TOPK:-500}
 TOPK2=${TOPK2:-20}
 
+if [[ -z "${SOURCE_DATA_DIR}" ]]; then
+  mkdir -p ./data
+  rsync -ahP ${SOURCE_DATA_DIR} ./data
+fi
+
 export SUBMISSION_FILE=${SUBMISSION_FILE:-submission24.csv}
 export TOPK_FILE=top${TOPK}_colbert_${COLBERT_RUN_ID}.csv
 
