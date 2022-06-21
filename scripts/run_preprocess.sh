@@ -6,6 +6,11 @@ export PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION=python
 DATA_DIR=./data
 TOPK=1000
 
+if [[ -z "${SOURCE_DATA_DIR}" ]]; then
+  mkdir -p $DATA_DIR
+  rsync -ahP ${SOURCE_DATA_DIR} $DATA_DIR
+fi
+
 python main.py make-index-contents --data-dir $DATA_DIR
 
 python -m pyserini.index.lucene \
