@@ -15,9 +15,9 @@ args=(
     --dataset-name $DATASET
     --run-script $0
     --mode "predict"
-    --submission-output "./submissions/submission23.csv"
+    --submission-output "./submissions/submission24.csv"
     --run-id "$RUN_ID"
-    --topk-candidates 50
+    --topk-candidates 20
     --test-batch-size 50
     --topk-filepath "./submissions/$TOPK_FILE"
 )
