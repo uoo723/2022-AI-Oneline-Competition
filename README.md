@@ -19,13 +19,14 @@
       - [Python 명령 스크립트](#python-명령-스크립트)
       - [Shell 스크립트 (`./scripts`)](#shell-스크립트-scripts)
       - [Log](#log)
-      - [Submssion](#submssion)
+      - [Submission](#submission)
+      - [Neural model 네트워크 및 학습 코드](#neural-model-네트워크-및-학습-코드)
     - [Reproduction](#reproduction)
       - [실험 환경](#실험-환경)
       - [데이터 전처리](#데이터-전처리)
       - [Neural 모델 훈련](#neural-모델-훈련)
       - [Test 추론](#test-추론)
-      - [Best 모델로 추론](#best-모델로-추론)
+      - [`best_submission.csv` 재현](#best_submissioncsv-재현)
   - [Experiments](#experiments)
   - [References](#references)
 ---
@@ -281,23 +282,29 @@ PORT=5050 ./scripts/run_mlflow.sh
 
 - `PORT`는 임의로 지정 가능. 서버 실행 후, 브라우저로 해당 서버 주소로 접속하여 log 기록 확인.
 
-#### Submssion
+#### Submission
 
-- submssion 파일들은 하위 디렉토리 `submissions`에 생성.
+- submission 파일들은 하위 디렉토리 `submissions`에 생성.
 - `best_submssion.csv`: Final 리더보드 제출 파일.
+
+#### Neural model 네트워크 및 학습 코드
+
+- 각 `src`의 하위 디렉토리 `{model_name}/models.py`에 모델 네트워크 정의.
+  - 현재 구현되어 있는 건 `colbert`, `monobert`
+- `{model_name}/trainer.py`에 각 모델의 훈련 loop 및 prediction 로직이 구현되어 있음.
 
 ### Reproduction
 
 - 모든 명령 실행은 프로젝트 디렉토리에서 실행 및 실행 시간 측정을 위해 `time` command 사용.
-- train/test 데이터는 프로젝트 하위 디렉토리 `data`에 있어야 함.
 - Neural 모델 weight 및 training log는 하위 디렉토리 `logs`에 기록됨.
+- `./data` 디렉토리가 생성되어 있다면 삭제해 주세요. `rm -rf ./data`
 
 #### 실험 환경
 
 - Intel(R) Xeon(R) CPU E5-2695 v4 @ 2.10GHz x 18 cores (36 threads)
 - 128GB RAM
 - Nvidia RTX 2080 Ti x 1 (ColBERT)
-- Nvidia RTX 3090 Ti x 1 (monoBERT)
+- Nvidia RTX 3090 x 1 (monoBERT)
 - Ubuntu 18.04
 
 #### 데이터 전처리
@@ -309,7 +316,7 @@ time SOURCE_DATA_DIR=/DATA ./scripts/run_preprocess.sh  # 1.5h
 #### Neural 모델 훈련
 
 ```bash
-time ./scripts/run_train.sh  # ColBERT: ~10h, monoBERT: ~16h
+time ./scripts/run_train.sh  # ColBERT: ~11.7h, monoBERT: ~16h
 ```
 
 #### Test 추론
@@ -318,13 +325,13 @@ time ./scripts/run_train.sh  # ColBERT: ~10h, monoBERT: ~16h
 time ./scripts/run_prediction.sh  # ColBERT: ~0.5h, monoBERT: ~2.5h
 ```
 
-#### Best 모델로 추론
+#### `best_submission.csv` 재현
 
 ```bash
 time COLBERT_RUN_ID=9d84388f242e44c289c7f459aa95bdca MONOBERT_RUN_ID=4a3cbf97ae1d4f14b0c7e4099a179c76 SUBMISSION_FILE=best.csv ./scripts/run_prediction.sh
 ```
 
-`./submission/best.csv` 생성됨.
+`./submissions/best.csv` 생성됨.
 
 ---
 
