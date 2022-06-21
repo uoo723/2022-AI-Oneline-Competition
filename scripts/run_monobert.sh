@@ -22,7 +22,7 @@ args=(
     --seed $1
     --swa-warmup 1
     # --eval-step 300
-    --eval-step 1000
+    --eval-step 5000
     --early 100000000000000
     --mp-enabled
     --gradient-max-norm 5.0
@@ -33,7 +33,7 @@ args=(
     # --reset-early
     --max-length 512
     # --valid-size 300
-    --valid-size 1000
+    --valid-size 300
     --use-layernorm
     --shard-idx 0
     --shard-idx 1
