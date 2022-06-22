@@ -344,7 +344,7 @@ time COLBERT_RUN_ID=9d84388f242e44c289c7f459aa95bdca MONOBERT_RUN_ID=4a3cbf97ae1
 | BM25 (500C) + ColBERT (50C) + monoBERT | 0.99369               | #22          |
 | BM25 (500C) + ColBERT (20C) + monoBERT | 0.99286               | #35          |
 
-- $N$C: Top-$N$ candidates
+- *N*C: Top-*N* candidates
 - 재현성 검증 서버 스펙 고려하여 #22 대신 #35 최종 제출.
 
 ---
