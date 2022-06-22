@@ -18,6 +18,7 @@ args=(
     --run-script $0
     --mode "predict"
     --submission-output "./submissions/$SUBMISSION_FILE"
+    --overwrite
     --run-id "$RUN_ID"
     --topk-candidates $TOPK
     --test-batch-size 50

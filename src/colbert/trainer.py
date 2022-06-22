@@ -476,11 +476,12 @@ def predict(args: AttrDict) -> Any:
         if args.silent:
             return
 
-        click.confirm(
-            f"{os.path.basename(args.submission_output)} is already existed."
-            " Overwrite it?",
-            abort=True,
-        )
+        if not args.overwrite:
+            click.confirm(
+                f"{os.path.basename(args.submission_output)} is already existed."
+                " Overwrite it?",
+                abort=True,
+            )
 
     Path(args.submission_output).touch()
 
