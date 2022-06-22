@@ -316,7 +316,7 @@ time SOURCE_DATA_DIR=/DATA ./scripts/run_preprocess.sh  # 1.5h
 #### Neural 모델 훈련
 
 ```bash
-time ./scripts/run_train.sh  # ColBERT: ~11.7h, monoBERT: ~16h
+time ./scripts/run_train.sh  # ColBERT: ~11.9h, monoBERT: ~16h
 ```
 
 #### Test 추론
@@ -337,18 +337,15 @@ time COLBERT_RUN_ID=9d84388f242e44c289c7f459aa95bdca MONOBERT_RUN_ID=4a3cbf97ae1
 
 ## Experiments
 
-| Model                                                                   | MRR@10 (Public Score) | Submission # |
-|-------------------------------------------------------------------------|-----------------------|--------------|
-| BM25                                                                    | 0.94637               | #1           |
-| BM25 (50 candidates) + monoBERT (small)                                 | 0.98371               | #2           |
-| BM25 (100 candidates) + monoBERT (small)                                | 0.98415               | #3           |
-| BM25 (50 candidates) + monoBERT (base)                                  | 0.98489               | #4           |
-| BM25 (50 candidates) + monoBERT (base, SWA)                             | 0.98631               | #5           |
-| BM25 (50 candidates) + monoBERT (base, SWA, ENC-Ensemble)               | 0.98642               | #6           |
-| BM25 (1000 candidates) + ColBERT (small, 50 candidates) + monoBERT (#6) | 0.99010               | #10          |
-| BM25 (500 candidates) + ColBERT (base, 50 candidates) + monoBERT (#6)   | 0.99047               | #12          |
-| BM25 (500 candidates) + ColBERT (#12) + monoBERT (#6 + all data)        | 0.99143               | #16          |
+| Model                                  | MRR@10 (Public Score) | Submission # |
+|----------------------------------------|-----------------------|--------------|
+| BM25                                   | 0.94637               | #1           |
+| BM25 (50C) + monoBERT                  | 0.98642               | #6           |
+| BM25 (500C) + ColBERT (50C) + monoBERT | 0.99369               | #22          |
+| BM25 (500C) + ColBERT (20C) + monoBERT | 0.99286               | #35          |
 
+- $N$C: Top-$N$ candidates
+- 재현성 검증 서버 스펙 고려하여 #22 대신 #35 최종 제출.
 
 ---
 
