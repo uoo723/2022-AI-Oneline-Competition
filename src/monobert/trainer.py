@@ -323,6 +323,8 @@ def predict(args: AttrDict) -> Any:
     if args.topk_filepath:
         logger.info(f"topk_filepath: {args.topk_filepath}")
 
+    os.makedirs(os.path.dirname(args.submission_output), exist_ok=True)
+
     if os.path.exists(args.submission_output):
         if args.silent:
             return

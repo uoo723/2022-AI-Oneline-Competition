@@ -472,6 +472,8 @@ def predict(args: AttrDict) -> Any:
     logger.info(f"run_id: {args.run_id}")
     logger.info(f"submission_output: {args.submission_output}")
 
+    os.makedirs(os.path.dirname(args.submission_output), exist_ok=True)
+
     if os.path.exists(args.submission_output):
         if args.silent:
             return
