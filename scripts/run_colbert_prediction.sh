@@ -19,7 +19,7 @@ args=(
     --run-id "$RUN_ID"
     --topk-candidates $TOPK
     --final-topk $TOPK
-    --test-batch-size 8
+    --test-batch-size 64
     --query-max-length 80
     --passage-max-length 512
 )
