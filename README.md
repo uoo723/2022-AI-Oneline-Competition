@@ -27,6 +27,7 @@
       - [Neural 모델 훈련](#neural-모델-훈련)
       - [Test 추론](#test-추론)
       - [`best_submission.csv` 재현](#best_submissioncsv-재현)
+      - [모델 실험 `RUN_ID`](#모델-실험-run_id)
   - [Experiments](#experiments)
   - [References](#references)
 ---
@@ -399,6 +400,13 @@ time COLBERT_RUN_ID=9d84388f242e44c289c7f459aa95bdca MONOBERT_RUN_ID=4a3cbf97ae1
 ```
 
 `./submissions/best.csv` 생성됨.
+
+#### 모델 실험 `RUN_ID`
+
+- `9d84388f242e44c289c7f459aa95bdca`: final 리더보드에서 사용된 ColBERT
+- `40b783df8e4b41ab84341330d42fd13f`: 검증용 서버에서 실행시킨 ColBERT
+- `4a3cbf97ae1d4f14b0c7e4099a179c76`: final 리더보드에서 사용된 monoBERT
+- `659e51913f5347cabb567221cb9ae398`: 검증용 서버에서 실행시킨 monoBERT
 
 ---
 
