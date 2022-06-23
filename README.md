@@ -378,7 +378,15 @@ for i, (query_embed, c_doc_ids) in enumerate(zip(query_embeds, candidate_doc_ids
 
 기존 GCP T4 환경에서의 `.cuda()` 속도
 
-![스크린샷 2022-06-23 14 56 31](https://user-images.githubusercontent.com/7765506/175227780-d4d92c2b-cb50-4967-afb1-20d256309ba2.png)
+- Ubuntu 18.04
+- n1-highmem-16 (vCPU 16, 104GB)
+- Intel(R) Xeon(R) CPU @ 2.00GHz
+- Telsa T4
+- CUDA 11.4
+- Python 3.7.13
+- Pytorch 1.9.0 (cuDNN 7650)
+  
+![스크린샷 2022-06-23 15 40 40](https://user-images.githubusercontent.com/7765506/175232311-6d726caa-d2e5-48e9-94d2-403f56b7ce74.png)
 
 검증용 서버 환경에서의 `.cuda()` 속도
 
