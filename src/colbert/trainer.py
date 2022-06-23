@@ -446,7 +446,7 @@ def _get_answers(
     answers = []
     doc_embeds = []
     doc_attention_mask = []
-    for c_doc_ids in candidate_doc_ids:
+    for c_doc_ids in query_embeds, candidate_doc_ids:
         doc_embeds.append(
             torch.stack([doc_embed_map[d_id]["embed"] for d_id in c_doc_ids])
         )
