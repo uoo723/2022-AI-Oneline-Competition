@@ -35,6 +35,7 @@ from ..utils import AttrDict, copy_file, filter_arguments, get_num_batches
 from .datasets import Dataset, bert_collate_fn
 from .loss import CircleLoss
 from .models import ColBERT, LateInteraction, TransformerLateInteraction
+import time
 
 BATCH = Tuple[Dict[str, torch.Tensor], torch.Tensor]
 
@@ -443,22 +444,27 @@ def _get_answers(
         query_embeds = model({k: v.to(device) for k, v in query_inputs.items()})
 
     answers = []
-    for i, (query_embed, c_doc_ids) in enumerate(zip(query_embeds, candidate_doc_ids)):
-        doc_embed = (
+    doc_embeds = []
+    doc_attention_mask = []
+    for c_doc_ids in query_embeds, candidate_doc_ids:
+        doc_embeds.append(
             torch.stack([doc_embed_map[d_id]["embed"] for d_id in c_doc_ids])
-            .unsqueeze(0)
-            .to(device)
         )
-        doc_attention_mask: torch.Tensor = (
+        doc_attention_mask.append(
             torch.stack([doc_embed_map[d_id]["attention_mask"] for d_id in c_doc_ids])
-            .unsqueeze(0)
-            .to(device)
         )
-        query_attention_mask = query_inputs["attention_mask"][i : i + 1].to(device)
-        scores: torch.Tensor = late_interaction(
-            query_embed, doc_embed, query_attention_mask, doc_attention_mask
-        )
-        rank = scores.squeeze().cpu().numpy().argsort()[::-1]
+
+    doc_embeds = torch.stack(doc_embeds).to(device)
+    doc_attention_mask = torch.stack(doc_attention_mask).to(device)
+    query_attention_mask = query_inputs["attention_mask"].to(device)
+
+    scores: torch.Tensor = late_interaction(
+        query_embeds, doc_embeds, query_attention_mask, doc_attention_mask
+    )
+
+    ranks = scores.cpu().numpy().argsort()[:, ::-1]
+
+    for rank, c_doc_ids in zip(ranks, candidate_doc_ids):
         answers.append(",".join(c_doc_ids[rank][:topk]))
 
     return answers
