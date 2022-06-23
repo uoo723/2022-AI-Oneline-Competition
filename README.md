@@ -316,7 +316,7 @@ time SOURCE_DATA_DIR=/DATA ./scripts/run_preprocess.sh  # 1.5h
 #### Neural 모델 훈련
 
 ```bash
-time ./scripts/run_train.sh  # ColBERT: ~11.9h, monoBERT: ~16h
+time ./scripts/run_train.sh  # ColBERT: ~11.9h, monoBERT: ~12.9h
 ```
 
 #### Test 추론
