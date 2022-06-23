@@ -325,6 +325,65 @@ time ./scripts/run_train.sh  # ColBERT: ~11.9h, monoBERT: ~12.9h
 time ./scripts/run_prediction.sh  # ColBERT: ~0.5h, monoBERT: ~2.5h
 ```
 
+현재 검증용 서버에서 ColBERT prediction에서 병목현상이 일어나 기존 GCP Tesla T4 환경에서 테스트한 추론시간 대비 검증용 서버에서 10배정도 추론이 느려지는 현상이 있습니다.
+병목 현상이 일어나는 부분
+
+`src/colbert/trainer.py`의 446-462
+
+```python
+for i, (query_embed, c_doc_ids) in enumerate(zip(query_embeds, candidate_doc_ids)):
+        doc_embed = (
+            torch.stack([doc_embed_map[d_id]["embed"] for d_id in c_doc_ids])
+            .unsqueeze(0)
+            .to(device)
+        )
+        doc_attention_mask: torch.Tensor = (
+            torch.stack([doc_embed_map[d_id]["attention_mask"] for d_id in c_doc_ids])
+            .unsqueeze(0)
+            .to(device)
+        )
+        query_attention_mask = query_inputs["attention_mask"][i : i + 1].to(device)
+        scores: torch.Tensor = late_interaction(
+            query_embed, doc_embed, query_attention_mask, doc_attention_mask
+        )
+        rank = scores.squeeze().cpu().numpy().argsort()[::-1]
+        answers.append(",".join(c_doc_ids[rank][:topk]))
+```
+
+추론 시간 측정 코드
+
+```python
+import time
+for i, (query_embed, c_doc_ids) in enumerate(zip(query_embeds, candidate_doc_ids)):
+        start = time.time()
+        doc_embed = (
+            torch.stack([doc_embed_map[d_id]["embed"] for d_id in c_doc_ids])
+            .unsqueeze(0)
+            .to(device)
+        )
+        end = time.time()
+        print(f"time: {(end - start) * 1000:.4f} ms")
+        doc_attention_mask: torch.Tensor = (
+            torch.stack([doc_embed_map[d_id]["attention_mask"] for d_id in c_doc_ids])
+            .unsqueeze(0)
+            .to(device)
+        )
+        query_attention_mask = query_inputs["attention_mask"][i : i + 1].to(device)
+        scores: torch.Tensor = late_interaction(
+            query_embed, doc_embed, query_attention_mask, doc_attention_mask
+        )
+        rank = scores.squeeze().cpu().numpy().argsort()[::-1]
+        answers.append(",".join(c_doc_ids[rank][:topk]))
+```
+
+기존 GCP T4 환경에서의 `.cuda()` 속도
+
+![스크린샷 2022-06-23 14 56 31](https://user-images.githubusercontent.com/7765506/175227780-d4d92c2b-cb50-4967-afb1-20d256309ba2.png)
+
+검증용 서버 환경에서의 `.cuda()` 속도
+
+![스크린샷 2022-06-23 14 56 38](https://user-images.githubusercontent.com/7765506/175227915-d3aacc21-55c0-4e3d-87e2-587739cda276.png)
+
 #### `best_submission.csv` 재현
 
 ```bash
